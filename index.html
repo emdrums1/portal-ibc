@@ -697,19 +697,6 @@ textarea.form-control { resize: vertical; min-height: 90px; }
 .text-gold { color: var(--gold); }
 .text-green { color: var(--green); }
 .text-red { color: var(--red); }
-.demo-hint-btn {
-  background: var(--bg3);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  padding: 10px 6px;
-  cursor: pointer;
-  transition: all 0.2s;
-  text-align: center;
-  width: 100%;
-  font-family: 'DM Sans', sans-serif;
-}
-.demo-hint-btn:hover { border-color: var(--gold); background: var(--bg4); }
-
 @keyframes spin { to { transform: rotate(360deg); } }
 .spinner {
   width: 16px; height: 16px;
@@ -735,7 +722,6 @@ textarea.form-control { resize: vertical; min-height: 90px; }
 ============================================ -->
 <div id="login-screen">
   <div class="login-box">
-    <div class="login-cross">✦ ✦ ✦</div>
     <div class="login-logo">
       <h1>Instituto Bíblico MUC</h1>
       <p>Misión Unión Cristiana — Portal Estudiantil</p>
@@ -789,34 +775,40 @@ textarea.form-control { resize: vertical; min-height: 90px; }
     </div>
 
     <div class="login-divider" style="margin-top:20px"></div>
-
-    <!-- CUENTAS DE PRUEBA -->
-    <div id="demo-hint" style="margin-top:4px">
-      <p style="font-size:11px;color:var(--text3);text-align:center;margin-bottom:10px;text-transform:uppercase;letter-spacing:1px">Cuentas de prueba</p>
-      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px">
-        <button class="demo-hint-btn" onclick="usarCuenta('12345678','Admin2025!')">
-          <div class="role-dot dot-admin" style="width:28px;height:28px;font-size:10px;margin:0 auto 4px">AD</div>
-          <div style="font-size:11px;font-weight:500;color:var(--text)">Admin</div>
-          <div style="font-size:10px;color:var(--text3)">RUT: 12345678</div>
-        </button>
-        <button class="demo-hint-btn" onclick="usarCuenta('14567890','Profe2025!')">
-          <div class="role-dot dot-prof" style="width:28px;height:28px;font-size:10px;margin:0 auto 4px">JP</div>
-          <div style="font-size:11px;font-weight:500;color:var(--text)">Profesor</div>
-          <div style="font-size:10px;color:var(--text3)">RUT: 14567890</div>
-        </button>
-        <button class="demo-hint-btn" onclick="usarCuenta('18234567','Maria2025!')">
-          <div class="role-dot dot-est" style="width:28px;height:28px;font-size:10px;margin:0 auto 4px">MR</div>
-          <div style="font-size:11px;font-weight:500;color:var(--text)">Estudiante</div>
-          <div style="font-size:10px;color:var(--text3)">RUT: 18234567</div>
-        </button>
-      </div>
-    </div>
+    <p class="login-note">¿Problemas para ingresar? Contacta al administrador del instituto.</p>
   </div>
 </div>
 
-<!-- ============================================
-     APP SHELL
-============================================ -->
+<!-- CAMBIO DE CONTRASEÑA OBLIGATORIO (primer ingreso) -->
+<div id="login-cambio-obligatorio" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.85);z-index:9999;display:none;align-items:center;justify-content:center;padding:20px">
+  <div class="login-box" style="max-width:400px">
+    <div class="login-logo">
+      <h1 style="font-size:18px">Bienvenido/a al portal</h1>
+      <p>Por seguridad, debes crear tu propia contraseña antes de continuar</p>
+    </div>
+    <div class="login-divider"></div>
+    <div id="cambio-ob-info" style="background:var(--gold-bg);border:1px solid rgba(201,168,76,0.3);border-radius:8px;padding:12px;font-size:12px;color:var(--gold);margin-bottom:16px;line-height:1.5">
+      Esta es tu primera vez ingresando. Crea una contraseña personal que solo tú conozcas.
+    </div>
+    <div class="form-group">
+      <label class="form-label" style="color:var(--text3)">Nueva contraseña</label>
+      <input type="password" id="ob-nueva" class="form-control" placeholder="Mínimo 8 caracteres"
+        onkeydown="if(event.key==='Enter')document.getElementById('ob-confirmar').focus()">
+    </div>
+    <div class="form-group">
+      <label class="form-label" style="color:var(--text3)">Repetir contraseña</label>
+      <input type="password" id="ob-confirmar" class="form-control" placeholder="Escribe la misma contraseña"
+        onkeydown="if(event.key==='Enter')confirmarCambioObligatorio()">
+    </div>
+    <div id="ob-error" style="display:none;font-size:12px;color:var(--red);margin-bottom:10px;padding:8px 12px;background:var(--red-bg);border-radius:6px"></div>
+    <div style="font-size:11px;color:var(--text3);margin-bottom:14px;line-height:1.5">
+      La contraseña debe tener al menos 8 caracteres. Combina letras y números para que sea más segura.
+    </div>
+    <button class="btn btn-gold" style="width:100%;justify-content:center;padding:11px" onclick="confirmarCambioObligatorio()">
+      Guardar y entrar al portal
+    </button>
+  </div>
+</div>
 <div id="app">
   <!-- Sidebar -->
   <aside class="sidebar" id="sidebar">
@@ -1098,39 +1090,46 @@ function formatearRutInput(input) {
 // Credenciales — el campo "rut" es el RUT BASE sin puntos, sin guión, sin dígito verificador
 const USUARIOS_AUTH = [
   {
-    id: 1, rut: '12345678', password: 'Admin2025!',
+    id: 1, rut: '20527658', password: 'IBC_Muc#2025*Adm',
     rol: 'admin', nombre: 'Administrador', iniciales: 'AD',
     email: 'admin@ibcmuc.cl',
+    debe_cambiar_password: false,
   },
   {
     id: 2, rut: '14567890', password: 'Profe2025!',
     rol: 'profesor', nombre: 'Prof. Juan Pérez', iniciales: 'JP',
     email: 'jperez@ibcmuc.cl', materias: [1,2,3],
+    debe_cambiar_password: true,
   },
   {
-    id: 3, rut: '18234567', password: 'Maria2025!',
+    id: 3, rut: '18234567', password: 'Bienvenido2025!',
     rol: 'estudiante', nombre: 'María Ramírez', iniciales: 'MR',
     email: 'mramirez@ibcmuc.cl', estudiante_id: 3,
+    debe_cambiar_password: true,
   },
   {
-    id: 10, rut: '19876543', password: 'Pedro2025!',
+    id: 10, rut: '19876543', password: 'Bienvenido2025!',
     rol: 'estudiante', nombre: 'Pedro González', iniciales: 'PG',
     email: 'pgonzalez@ibcmuc.cl', estudiante_id: 10,
+    debe_cambiar_password: true,
   },
   {
-    id: 11, rut: '17456789', password: 'Sofia2025!',
+    id: 11, rut: '17456789', password: 'Bienvenido2025!',
     rol: 'estudiante', nombre: 'Sofía Vargas', iniciales: 'SV',
     email: 'svargas@ibcmuc.cl', estudiante_id: 11,
+    debe_cambiar_password: true,
   },
   {
-    id: 98, rut: '15678901', password: 'Profe2025!',
+    id: 98, rut: '15678901', password: 'Bienvenido2025!',
     rol: 'profesor', nombre: 'Prof. Ana López', iniciales: 'AL',
     email: 'alopez@ibcmuc.cl', materias: [4,6],
+    debe_cambiar_password: true,
   },
   {
-    id: 99, rut: '16789012', password: 'Profe2025!',
+    id: 99, rut: '16789012', password: 'Bienvenido2025!',
     rol: 'profesor', nombre: 'Prof. Carlos Ruiz', iniciales: 'CR',
     email: 'cruiz@ibcmuc.cl', materias: [5],
+    debe_cambiar_password: true,
   },
 ];
 
@@ -1220,7 +1219,12 @@ function intentarLogin() {
         }));
       } catch(e) {}
 
-      mostrarApp();
+      // Si es primer ingreso, forzar cambio de contraseña
+      if (usuario.debe_cambiar_password) {
+        mostrarCambioObligatorio();
+      } else {
+        mostrarApp();
+      }
     } else {
       intentosFallidos++;
       btn.innerHTML = 'Ingresar al portal';
@@ -1278,23 +1282,56 @@ function togglePass() {
   }
 }
 
-function usarCuenta(rut, pass) {
-  document.getElementById('login-rut').value = rut;
-  document.getElementById('login-pass').value = pass;
-  document.getElementById('login-error').style.display = 'none';
-  document.getElementById('login-pass').focus();
+function mostrarCambioObligatorio() {
+  const overlay = document.getElementById('login-cambio-obligatorio');
+  overlay.style.display = 'flex';
+  // Personalizar con el nombre del usuario
+  document.getElementById('cambio-ob-info').innerHTML =
+    `Hola <strong>${currentUser.nombre}</strong>, esta es tu primera vez ingresando al portal.<br>
+     Crea una contraseña personal que solo tú conozcas.`;
+  document.getElementById('btn-ingresar').innerHTML = 'Ingresar al portal';
+  document.getElementById('btn-ingresar').disabled = false;
+}
+
+function confirmarCambioObligatorio() {
+  const nueva     = document.getElementById('ob-nueva').value;
+  const confirmar = document.getElementById('ob-confirmar').value;
+  const errEl     = document.getElementById('ob-error');
+
+  if (nueva.length < 8) {
+    errEl.textContent = 'La contraseña debe tener al menos 8 caracteres.';
+    errEl.style.display = 'block'; return;
+  }
+  if (nueva !== confirmar) {
+    errEl.textContent = 'Las contraseñas no coinciden. Intenta de nuevo.';
+    errEl.style.display = 'block'; return;
+  }
+
+  // Guardar nueva contraseña y marcar que ya no necesita cambiar
+  const usuarioAuth = USUARIOS_AUTH.find(u => u.id === currentUser.id);
+  if (usuarioAuth) {
+    usuarioAuth.password = nueva;
+    usuarioAuth.debe_cambiar_password = false;
+  }
+
+  // Cerrar overlay y entrar al portal
+  document.getElementById('login-cambio-obligatorio').style.display = 'none';
+  document.getElementById('ob-nueva').value = '';
+  document.getElementById('ob-confirmar').value = '';
+  errEl.style.display = 'none';
+
+  showToast('¡Contraseña creada! Bienvenido/a al portal ✦');
+  mostrarApp();
 }
 
 function mostrarRecuperar() {
   document.getElementById('login-form-view').style.display = 'none';
   document.getElementById('login-recuperar-view').style.display = 'block';
-  document.getElementById('demo-hint').style.display = 'none';
 }
 
 function mostrarFormLogin() {
   document.getElementById('login-form-view').style.display = 'block';
   document.getElementById('login-recuperar-view').style.display = 'none';
-  document.getElementById('demo-hint').style.display = 'block';
 }
 
 function enviarRecuperacion() {
@@ -2666,7 +2703,7 @@ function renderProfesores() {
   return `
   <div class="flex-between mb-2">
     <p class="text-muted text-sm">${profs.length} docentes registrados</p>
-    <button class="btn btn-gold" onclick="showToast('Función disponible en la versión final con base de datos')">+ Nuevo docente</button>
+    <button class="btn btn-gold" onclick="openModalNuevoProf()">+ Nuevo docente</button>
   </div>
   <div class="grid-3">
     ${profs.map(p=>`<div class="card">
@@ -2695,6 +2732,58 @@ function closeModal(e) {
   if (!e || e.target === document.getElementById('modal-overlay')) {
     document.getElementById('modal-overlay').classList.remove('open');
   }
+}
+
+function guardarNuevoProfModal(nombre, rut, email, especialidad) {
+  if (!nombre || !rut) { showToast('Nombre y RUT son obligatorios'); return; }
+  const iniciales = nombre.split(' ').map(w=>w[0]).slice(0,2).join('').toUpperCase();
+  const passwordTemporal = 'Bienvenido2025!';
+  const nuevoId = Date.now();
+  USUARIOS_AUTH.push({
+    id: nuevoId, rut: rut.replace(/\./g,'').split('-')[0],
+    password: passwordTemporal,
+    rol: 'profesor', nombre, iniciales, email,
+    materias: [], debe_cambiar_password: true,
+  });
+  closeModal();
+  showModal(`
+    <div class="modal-title">
+      <span>Profesor registrado ✦</span>
+      <button class="modal-close" onclick="closeModal()">✕</button>
+    </div>
+    <div style="background:var(--gold-bg);border:1px solid rgba(201,168,76,0.3);border-radius:10px;padding:16px;margin-bottom:16px">
+      <div style="font-size:12px;color:var(--text3);margin-bottom:10px;text-transform:uppercase;letter-spacing:1px">Credenciales — entregar al docente</div>
+      <div class="row-item"><span style="color:var(--text2);font-size:13px">Nombre</span><strong style="color:var(--text)">${nombre}</strong></div>
+      <div class="row-item"><span style="color:var(--text2);font-size:13px">RUT de ingreso</span><strong style="color:var(--gold);font-family:monospace">${rut.replace(/\./g,'').split('-')[0]}</strong></div>
+      <div class="row-item"><span style="color:var(--text2);font-size:13px">Contraseña temporal</span><strong style="color:var(--gold);font-family:monospace">${passwordTemporal}</strong></div>
+    </div>
+    <div style="font-size:12px;color:var(--text3);line-height:1.6;background:var(--bg3);border-radius:8px;padding:12px">
+      El docente deberá cambiar esta contraseña la primera vez que ingrese. Comunícale estas credenciales de forma segura.
+    </div>
+    <button class="btn btn-gold mt-2" onclick="closeModal()">Entendido</button>
+  `);
+}
+
+function openModalNuevoProf() {
+  showModal(`<div class="modal-title"><span>Registrar nuevo docente</span><button class="modal-close" onclick="closeModal()">✕</button></div>
+    <div class="grid-2">
+      <div class="form-group"><label class="form-label">Nombre completo</label><input class="form-control" id="np-nombre" placeholder="Prof. Juan Soto"></div>
+      <div class="form-group"><label class="form-label">RUT (sin dígito verificador)</label><input class="form-control" id="np-rut" placeholder="12345678" oninput="formatearRutInput(this)"></div>
+    </div>
+    <div class="grid-2">
+      <div class="form-group"><label class="form-label">Email</label><input class="form-control" id="np-email" type="email" placeholder="docente@ibcmuc.cl"></div>
+      <div class="form-group"><label class="form-label">Especialidad</label><input class="form-control" id="np-espec" placeholder="Hermenéutica · Teología"></div>
+    </div>
+    <div style="background:var(--bg3);border-radius:8px;padding:12px;font-size:12px;color:var(--text3);margin-bottom:16px;line-height:1.5">
+      Se asignará la contraseña temporal <strong style="color:var(--gold)">Bienvenido2025!</strong> — el docente deberá cambiarla en su primer ingreso.
+    </div>
+    <button class="btn btn-gold" onclick="guardarNuevoProfModal(
+      document.getElementById('np-nombre').value.trim(),
+      document.getElementById('np-rut').value.trim(),
+      document.getElementById('np-email').value.trim(),
+      document.getElementById('np-espec').value.trim()
+    )">Registrar docente</button>
+  `);
 }
 
 function openModalNuevoEst() {
@@ -2750,8 +2839,11 @@ function guardarNuevoEst() {
   const carrera = document.getElementById('ne-carrera').value;
   const planId = parseInt(document.getElementById('ne-plan').value);
   const plan = DB.planes.find(p=>p.id===planId);
+  const passwordTemporal = 'Bienvenido2025!';
+  const nuevoId = Date.now();
+
   DB.estudiantes.push({
-    id: Date.now(), nombre, apellido2, iniciales, rut,
+    id: nuevoId, nombre, apellido2, iniciales, rut,
     fechaNacimiento: document.getElementById('ne-fnac').value||'',
     genero: '—', nacionalidad: 'Chilena', estadoCivil: '—',
     iglesia: document.getElementById('ne-iglesia').value||'',
@@ -2768,9 +2860,44 @@ function guardarNuevoEst() {
     creditosAprobados: 0, creditosPlan: plan?.creditos_total||100,
     observaciones: '',
   });
+
+  // Crear usuario de acceso con contraseña temporal
+  USUARIOS_AUTH.push({
+    id: nuevoId, rut: rut.replace(/\./g,'').split('-')[0],
+    password: passwordTemporal,
+    rol: 'estudiante', nombre: `${nombre} ${apellido2}`.trim(),
+    iniciales, email: document.getElementById('ne-email').value||'',
+    estudiante_id: nuevoId, debe_cambiar_password: true,
+  });
+
   closeModal();
-  showToast('Estudiante registrado correctamente ✦');
-  navigate('estudiantes');
+
+  // Mostrar credenciales al administrador
+  showModal(`
+    <div class="modal-title">
+      <span>Estudiante registrado ✦</span>
+      <button class="modal-close" onclick="closeModal()">✕</button>
+    </div>
+    <div style="background:var(--gold-bg);border:1px solid rgba(201,168,76,0.3);border-radius:10px;padding:16px;margin-bottom:16px">
+      <div style="font-size:12px;color:var(--text3);margin-bottom:10px;text-transform:uppercase;letter-spacing:1px">Credenciales de acceso — entregar al estudiante</div>
+      <div class="row-item">
+        <span style="color:var(--text2);font-size:13px">Nombre</span>
+        <strong style="color:var(--text)">${nombre} ${apellido2}</strong>
+      </div>
+      <div class="row-item">
+        <span style="color:var(--text2);font-size:13px">RUT de ingreso</span>
+        <strong style="color:var(--gold);font-family:monospace">${rut.replace(/\./g,'').split('-')[0]}</strong>
+      </div>
+      <div class="row-item">
+        <span style="color:var(--text2);font-size:13px">Contraseña temporal</span>
+        <strong style="color:var(--gold);font-family:monospace">${passwordTemporal}</strong>
+      </div>
+    </div>
+    <div style="font-size:12px;color:var(--text3);line-height:1.6;background:var(--bg3);border-radius:8px;padding:12px">
+      El estudiante deberá cambiar esta contraseña la primera vez que ingrese al portal. Comunícale estas credenciales de forma segura (en persona o por mensaje directo).
+    </div>
+    <button class="btn btn-gold mt-2" onclick="closeModal();navigate('estudiantes')">Entendido</button>
+  `);
 }
 
 function openModalFormAdmision() {
