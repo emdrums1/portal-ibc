@@ -850,74 +850,22 @@ textarea.form-control { resize: vertical; min-height: 90px; }
 // ============================================
 const DB = {
   semestre: "1er Semestre 2025",
-  
-  usuarios: [
-    { id: 1, rol: 'admin',      nombre: 'Administrador',    iniciales: 'AD', email: 'admin@ibcmuc.cl' },
-    { id: 2, rol: 'profesor',   nombre: 'Prof. Juan Pérez', iniciales: 'JP', email: 'jperez@ibcmuc.cl',
-      materias: [1,2,3] },
-    { id: 3, rol: 'estudiante', nombre: 'María Ramírez',    iniciales: 'MR', email: 'mramirez@ibcmuc.cl',
-      semestre: '3er Semestre', telefono: '+56 9 8765 4321', direccion: 'Av. Los Pinos 432, Concepción',
-      ingreso: '2023-03-01', estado: 'Activa', carrera: 'Teología Pastoral' }
-  ],
 
-  materias: [
-    { id: 1, nombre: 'Hermenéutica I',        codigo: 'HER101', semestre: 1, profesor: 'Prof. Juan Pérez',  creditos: 4 },
-    { id: 2, nombre: 'Teología Sistemática II', codigo: 'TEO202', semestre: 2, profesor: 'Prof. Juan Pérez',  creditos: 5 },
-    { id: 3, nombre: 'Evangelios y Hechos',     codigo: 'NT301',  semestre: 3, profesor: 'Prof. Juan Pérez',  creditos: 4 },
-    { id: 4, nombre: 'AT — Historia y Profetas', codigo: 'AT201', semestre: 2, profesor: 'Prof. Ana López',   creditos: 4 },
-    { id: 5, nombre: 'Homilética Práctica',      codigo: 'HOM301', semestre: 3, profesor: 'Prof. Carlos Ruiz', creditos: 3 },
-    { id: 6, nombre: 'Ética Cristiana',          codigo: 'ETI101', semestre: 1, profesor: 'Prof. Ana López',   creditos: 3 },
-  ],
+  usuarios: [],
 
-  notas: [
-    { estudiante_id: 3, materia_id: 1, parcial1: 9.2, parcial2: 8.8, tarea: 9.5, examen: null },
-    { estudiante_id: 3, materia_id: 2, parcial1: 8.0, parcial2: 8.5, tarea: 8.2, examen: null },
-    { estudiante_id: 3, materia_id: 3, parcial1: 7.5, parcial2: null, tarea: 8.0, examen: null },
-    { estudiante_id: 3, materia_id: 4, parcial1: 6.4, parcial2: 7.0, tarea: 6.8, examen: null },
-    { estudiante_id: 3, materia_id: 5, parcial1: 7.8, parcial2: 8.2, tarea: null, examen: null },
-  ],
+  materias: [],
 
-  horario: [
-    { materia_id: 1, dia: 1, hora: '09:00', aula: 'Sala A', link: 'https://zoom.us/j/1234567', tipo: 'presencial' },
-    { materia_id: 2, dia: 3, hora: '09:00', aula: 'Sala B', link: 'https://zoom.us/j/7654321', tipo: 'online' },
-    { materia_id: 3, dia: 5, hora: '09:00', aula: 'Sala A', link: '',                           tipo: 'presencial' },
-    { materia_id: 4, dia: 6, hora: '08:00', aula: 'Sala C', link: 'https://zoom.us/j/9876543', tipo: 'hibrida' },
-    { materia_id: 5, dia: 1, hora: '11:00', aula: 'Sala B', link: '',                           tipo: 'presencial' },
-    { materia_id: 6, dia: 4, hora: '10:00', aula: 'Sala A', link: 'https://zoom.us/j/1112223', tipo: 'online' },
-  ],
+  notas: [],
 
-  material: [
-    { id: 1, materia_id: 1, titulo: 'Clase 1 — Principios de Hermenéutica', tipo: 'zoom', link: 'https://zoom.us/j/1234567', fecha: '2025-03-10' },
-    { id: 2, materia_id: 1, titulo: 'Guía de estudio — Capítulos 1-3',      tipo: 'doc',  link: '#',                        fecha: '2025-03-08' },
-    { id: 3, materia_id: 2, titulo: 'Grabación — Clase 2 Teología',         tipo: 'video', link: '#',                       fecha: '2025-03-12' },
-    { id: 4, materia_id: 3, titulo: 'Clase online — Evangelio de Juan',     tipo: 'zoom', link: 'https://zoom.us/j/5556667', fecha: '2025-03-14' },
-    { id: 5, materia_id: 5, titulo: 'Plantilla de sermón',                  tipo: 'doc',  link: '#',                        fecha: '2025-03-05' },
-  ],
+  horario: [],
 
-  solicitudes: [
-    { id: 1, estudiante_id: 3, tipo: 'Certificado de notas',    fecha: '2025-03-12', estado: 'En proceso', detalle: 'Necesito certificado para trámite bancario' },
-    { id: 2, estudiante_id: 3, tipo: 'Retiro de materia',       fecha: '2025-03-05', estado: 'Aprobada',   detalle: 'Retiro AT-201 por motivos laborales' },
-    { id: 3, estudiante_id: 4, tipo: 'Constancia de alumno',    fecha: '2025-03-01', estado: 'Aprobada',   detalle: '' },
-    { id: 4, estudiante_id: 5, tipo: 'Reconocimiento de notas', fecha: '2025-02-20', estado: 'Rechazada',  detalle: '' },
-  ],
+  material: [],
 
-  foro: [
-    { id: 1, materia_id: 1, autor: 'Prof. Juan Pérez', titulo: '¿Cómo interpretar los textos apocalípticos?', fecha: '2025-03-13', respuestas: 5,
-      contenido: 'Es importante distinguir entre el género apocalíptico y el lenguaje profético...' },
-    { id: 2, materia_id: 1, autor: 'María Ramírez',    titulo: 'Material complementario — Clase 3',           fecha: '2025-03-11', respuestas: 2,
-      contenido: 'Comparto el resumen que hice de los principios de exégesis...' },
-    { id: 3, materia_id: 2, autor: 'Prof. Juan Pérez', titulo: 'Diferencias entre Calvino y Arminius',        fecha: '2025-03-09', respuestas: 8,
-      contenido: 'Para la próxima clase vamos a debatir los principales puntos de diferencia...' },
-    { id: 4, materia_id: 3, autor: 'Prof. Juan Pérez', titulo: 'El contexto histórico de los Evangelios',     fecha: '2025-03-07', respuestas: 3,
-      contenido: 'El siglo I d.C. presenta un escenario político y religioso muy particular...' },
-  ],
+  solicitudes: [],
 
-  admisiones: [
-    { id: 1, nombre: 'Carlos Muñoz',   email: 'carlos@gmail.com', telefono: '+56 9 1234 5678', fecha: '2025-03-18', estado: 'Pendiente',    semestre: '1er Semestre', mensaje: 'Soy pastor de una iglesia pequeña y quiero formarme mejor.' },
-    { id: 2, nombre: 'Ana Torres',     email: 'ana@gmail.com',    telefono: '+56 9 8765 0011', fecha: '2025-03-15', estado: 'En revisión',  semestre: '1er Semestre', mensaje: 'Tengo vocación de misionera y quiero prepararme teológicamente.' },
-    { id: 3, nombre: 'Luis Hernández', email: 'luis@gmail.com',   telefono: '+56 9 5555 1234', fecha: '2025-03-10', estado: 'Aceptada',    semestre: 'Reingreso',    mensaje: 'Solicito reingreso después de un año de licencia.' },
-    { id: 4, nombre: 'Rosa Díaz',      email: 'rosa@gmail.com',   telefono: '+56 9 7777 8888', fecha: '2025-03-08', estado: 'Pendiente',   semestre: '1er Semestre', mensaje: 'Soy líder de jóvenes y quiero profundizar en teología.' },
-  ],
+  foro: [],
+
+  admisiones: [],
 
   planes: [
     { id: 1, nombre: 'Plan Teología Pastoral',       codigo: 'PTP-2022', semestres: 6, creditos_total: 120, carreras: ['Teología Pastoral'] },
@@ -926,144 +874,17 @@ const DB = {
   ],
 
   estadosAcademicos: [
-    { valor: 'Regular',          color: 'b-green', desc: 'Cursando materias normalmente' },
-    { valor: 'Sin inscripción',  color: 'b-gold',  desc: 'No ha inscrito materias este semestre' },
-    { valor: 'Suspendido',       color: 'b-red',   desc: 'Suspendido disciplinaria o administrativamente' },
-    { valor: 'Renunciado',       color: 'b-gray',  desc: 'Renunció voluntariamente' },
-    { valor: 'Desertor',         color: 'b-red',   desc: 'Abandono sin comunicación formal' },
-    { valor: 'Egresado',         color: 'b-blue',  desc: 'Completó el plan de estudios' },
-    { valor: 'Congelado',        color: 'b-gold',  desc: 'Pausa temporal aprobada por la institución' },
-    { valor: 'Intercambio',      color: 'b-blue',  desc: 'En programa de intercambio o misión' },
+    { valor: 'Regular',         color: 'b-green', desc: 'Cursando materias normalmente' },
+    { valor: 'Sin inscripción', color: 'b-gold',  desc: 'No ha inscrito materias este semestre' },
+    { valor: 'Suspendido',      color: 'b-red',   desc: 'Suspendido disciplinaria o administrativamente' },
+    { valor: 'Renunciado',      color: 'b-gray',  desc: 'Renunció voluntariamente' },
+    { valor: 'Desertor',        color: 'b-red',   desc: 'Abandono sin comunicación formal' },
+    { valor: 'Egresado',        color: 'b-blue',  desc: 'Completó el plan de estudios' },
+    { valor: 'Congelado',       color: 'b-gold',  desc: 'Pausa temporal aprobada por la institución' },
+    { valor: 'Intercambio',     color: 'b-blue',  desc: 'En programa de intercambio o misión' },
   ],
 
-  estudiantes: [
-    {
-      id: 3, nombre: 'María Ramírez', apellido2: 'Torres', iniciales: 'MR',
-      rut: '18.234.567-8', fechaNacimiento: '1998-04-15', genero: 'Femenino',
-      nacionalidad: 'Chilena', estadoCivil: 'Soltera', iglesia: 'IEP Concepción Centro',
-      email: 'mramirez@ibcmuc.cl', emailPersonal: 'maria.ramirez@gmail.com',
-      telefono: '+56 9 8765 4321', telefonoEmergencia: '+56 9 1111 2222',
-      contactoEmergencia: 'Rosa Torres (madre)',
-      direccion: 'Av. Los Pinos 432', ciudad: 'Concepción', region: 'Biobío',
-      semestre: '3er', semestreNum: 3, estado: 'Activa', estadoAcademico: 'Regular',
-      ingreso: 2023, fechaIngreso: '2023-03-01', egreso: null,
-      carrera: 'Teología Pastoral', plan_id: 1,
-      creditosAprobados: 60, creditosPlan: 120,
-      observaciones: 'Estudiante destacada, monitor de hermenéutica.',
-    },
-    {
-      id: 10, nombre: 'Pedro González', apellido2: 'Muñoz', iniciales: 'PG',
-      rut: '19.876.543-2', fechaNacimiento: '2001-08-22', genero: 'Masculino',
-      nacionalidad: 'Chilena', estadoCivil: 'Soltero', iglesia: 'IEP Talcahuano',
-      email: 'pgonzalez@ibcmuc.cl', emailPersonal: 'pedro.gon@gmail.com',
-      telefono: '+56 9 7654 3210', telefonoEmergencia: '+56 9 3333 4444',
-      contactoEmergencia: 'Luis González (padre)',
-      direccion: 'Calle Maule 88', ciudad: 'Talcahuano', region: 'Biobío',
-      semestre: '2do', semestreNum: 2, estado: 'Activo', estadoAcademico: 'Regular',
-      ingreso: 2024, fechaIngreso: '2024-03-01', egreso: null,
-      carrera: 'Ministerio y Liderazgo', plan_id: 2,
-      creditosAprobados: 20, creditosPlan: 100,
-      observaciones: '',
-    },
-    {
-      id: 11, nombre: 'Sofía Vargas', apellido2: 'Pérez', iniciales: 'SV',
-      rut: '17.456.789-K', fechaNacimiento: '1996-11-03', genero: 'Femenino',
-      nacionalidad: 'Chilena', estadoCivil: 'Casada', iglesia: 'IEP Los Ángeles',
-      email: 'svargas@ibcmuc.cl', emailPersonal: 'sofia.vp@gmail.com',
-      telefono: '+56 9 6543 2109', telefonoEmergencia: '+56 9 5555 6666',
-      contactoEmergencia: 'Andrés Rojas (esposo)',
-      direccion: 'Pasaje Las Rosas 12', ciudad: 'Los Ángeles', region: 'Biobío',
-      semestre: '4to', semestreNum: 4, estado: 'Activa', estadoAcademico: 'Regular',
-      ingreso: 2022, fechaIngreso: '2022-03-01', egreso: null,
-      carrera: 'Teología Pastoral', plan_id: 1,
-      creditosAprobados: 80, creditosPlan: 120,
-      observaciones: 'Lideresa de mujeres en su congregación.',
-    },
-    {
-      id: 12, nombre: 'José Contreras', apellido2: 'Silva', iniciales: 'JC',
-      rut: '20.111.222-3', fechaNacimiento: '2003-01-17', genero: 'Masculino',
-      nacionalidad: 'Chilena', estadoCivil: 'Soltero', iglesia: 'IEP Chillán',
-      email: 'jcontreras@ibcmuc.cl', emailPersonal: 'jose.cs@gmail.com',
-      telefono: '+56 9 5432 1098', telefonoEmergencia: '+56 9 7777 8888',
-      contactoEmergencia: 'Andrea Silva (madre)',
-      direccion: 'Av. Ecuador 321', ciudad: 'Chillán', region: 'Ñuble',
-      semestre: '1er', semestreNum: 1, estado: 'Activo', estadoAcademico: 'Sin inscripción',
-      ingreso: 2025, fechaIngreso: '2025-03-01', egreso: null,
-      carrera: 'Biblia y Misiones', plan_id: 3,
-      creditosAprobados: 0, creditosPlan: 80,
-      observaciones: 'Primer semestre, pendiente de inscripción de materias.',
-    },
-    {
-      id: 13, nombre: 'Elena Morales', apellido2: 'Castillo', iniciales: 'EM',
-      rut: '19.333.444-5', fechaNacimiento: '2000-06-30', genero: 'Femenino',
-      nacionalidad: 'Chilena', estadoCivil: 'Soltera', iglesia: 'IEP Temuco',
-      email: 'emorales@ibcmuc.cl', emailPersonal: 'elena.mc@gmail.com',
-      telefono: '+56 9 4321 0987', telefonoEmergencia: '+56 9 9999 0000',
-      contactoEmergencia: 'Carlos Morales (padre)',
-      direccion: 'Calle Angol 56', ciudad: 'Temuco', region: 'Araucanía',
-      semestre: '2do', semestreNum: 2, estado: 'Activa', estadoAcademico: 'Suspendido',
-      ingreso: 2024, fechaIngreso: '2024-03-01', egreso: null,
-      carrera: 'Ministerio y Liderazgo', plan_id: 2,
-      creditosAprobados: 10, creditosPlan: 100,
-      observaciones: 'Suspendida por deuda de arancel. Se le notificó el 2025-02-15.',
-    },
-    {
-      id: 14, nombre: 'Diego Soto', apellido2: 'Araya', iniciales: 'DS',
-      rut: '17.888.999-1', fechaNacimiento: '1995-03-12', genero: 'Masculino',
-      nacionalidad: 'Chilena', estadoCivil: 'Casado', iglesia: 'IEP Valdivia',
-      email: 'dsoto@ibcmuc.cl', emailPersonal: 'diego.sa@gmail.com',
-      telefono: '+56 9 3210 9876', telefonoEmergencia: '+56 9 2222 3333',
-      contactoEmergencia: 'Claudia Vega (esposa)',
-      direccion: 'Calle Errázuriz 789', ciudad: 'Valdivia', region: 'Los Ríos',
-      semestre: '5to', semestreNum: 5, estado: 'Activo', estadoAcademico: 'Congelado',
-      ingreso: 2021, fechaIngreso: '2021-03-01', egreso: null,
-      carrera: 'Teología Pastoral', plan_id: 1,
-      creditosAprobados: 90, creditosPlan: 120,
-      observaciones: 'Congelado por enfermedad. Retoma en 2do semestre 2025.',
-    },
-    {
-      id: 15, nombre: 'Carmen Fuentes', apellido2: 'Rojas', iniciales: 'CF',
-      rut: '16.555.666-7', fechaNacimiento: '1993-09-25', genero: 'Femenino',
-      nacionalidad: 'Chilena', estadoCivil: 'Casada', iglesia: 'IEP Puerto Montt',
-      email: 'cfuentes@ibcmuc.cl', emailPersonal: 'carmen.fr@gmail.com',
-      telefono: '+56 9 2109 8765', telefonoEmergencia: '+56 9 4444 5555',
-      contactoEmergencia: 'Roberto Fuentes (hermano)',
-      direccion: 'Av. Calle Larga 200', ciudad: 'Puerto Montt', region: 'Los Lagos',
-      semestre: 'Egr.', semestreNum: 6, estado: 'Egresada', estadoAcademico: 'Egresado',
-      ingreso: 2020, fechaIngreso: '2020-03-01', egreso: '2023-12-15',
-      carrera: 'Teología Pastoral', plan_id: 1,
-      creditosAprobados: 120, creditosPlan: 120,
-      observaciones: 'Egresada con distinción. Actualmente pastora en su iglesia.',
-    },
-    {
-      id: 16, nombre: 'Ricardo Ponce', apellido2: 'Lagos', iniciales: 'RP',
-      rut: '16.222.333-9', fechaNacimiento: '1992-07-08', genero: 'Masculino',
-      nacionalidad: 'Chilena', estadoCivil: 'Soltero', iglesia: 'IEP Santiago',
-      email: 'rponce@ibcmuc.cl', emailPersonal: 'ricardo.pl@gmail.com',
-      telefono: '+56 9 1098 7654', telefonoEmergencia: '+56 9 6666 7777',
-      contactoEmergencia: 'Gloria Lagos (madre)',
-      direccion: 'Calle Condell 55', ciudad: 'Santiago', region: 'Metropolitana',
-      semestre: 'Egr.', semestreNum: 4, estado: 'Egresado', estadoAcademico: 'Egresado',
-      ingreso: 2019, fechaIngreso: '2019-03-01', egreso: '2023-06-30',
-      carrera: 'Biblia y Misiones', plan_id: 3,
-      creditosAprobados: 80, creditosPlan: 80,
-      observaciones: 'Egresado. Misionero en Bolivia desde 2024.',
-    },
-    {
-      id: 17, nombre: 'Fabián Díaz', apellido2: 'Vera', iniciales: 'FD',
-      rut: '18.777.888-0', fechaNacimiento: '1999-12-01', genero: 'Masculino',
-      nacionalidad: 'Chilena', estadoCivil: 'Soltero', iglesia: 'IEP Rancagua',
-      email: 'fdiaz@ibcmuc.cl', emailPersonal: 'fabian.dv@gmail.com',
-      telefono: '+56 9 0987 6543', telefonoEmergencia: '+56 9 8888 9999',
-      contactoEmergencia: 'María Vera (madre)',
-      direccion: 'Pasaje Los Boldos 3', ciudad: 'Rancagua', region: "O'Higgins",
-      semestre: '3er', semestreNum: 3, estado: 'Inactivo', estadoAcademico: 'Desertor',
-      ingreso: 2022, fechaIngreso: '2022-03-01', egreso: null,
-      carrera: 'Teología Pastoral', plan_id: 1,
-      creditosAprobados: 45, creditosPlan: 120,
-      observaciones: 'Sin contacto desde agosto 2023. Se intentó comunicar 3 veces sin respuesta.',
-    },
-  ],
+  estudiantes: [],
 };
 
 // ============================================
@@ -1094,42 +915,6 @@ const USUARIOS_AUTH = [
     rol: 'admin', nombre: 'Administrador', iniciales: 'AD',
     email: 'admin@ibcmuc.cl',
     debe_cambiar_password: false,
-  },
-  {
-    id: 2, rut: '14567890', password: 'Profe2025!',
-    rol: 'profesor', nombre: 'Prof. Juan Pérez', iniciales: 'JP',
-    email: 'jperez@ibcmuc.cl', materias: [1,2,3],
-    debe_cambiar_password: true,
-  },
-  {
-    id: 3, rut: '18234567', password: 'Bienvenido2025!',
-    rol: 'estudiante', nombre: 'María Ramírez', iniciales: 'MR',
-    email: 'mramirez@ibcmuc.cl', estudiante_id: 3,
-    debe_cambiar_password: true,
-  },
-  {
-    id: 10, rut: '19876543', password: 'Bienvenido2025!',
-    rol: 'estudiante', nombre: 'Pedro González', iniciales: 'PG',
-    email: 'pgonzalez@ibcmuc.cl', estudiante_id: 10,
-    debe_cambiar_password: true,
-  },
-  {
-    id: 11, rut: '17456789', password: 'Bienvenido2025!',
-    rol: 'estudiante', nombre: 'Sofía Vargas', iniciales: 'SV',
-    email: 'svargas@ibcmuc.cl', estudiante_id: 11,
-    debe_cambiar_password: true,
-  },
-  {
-    id: 98, rut: '15678901', password: 'Bienvenido2025!',
-    rol: 'profesor', nombre: 'Prof. Ana López', iniciales: 'AL',
-    email: 'alopez@ibcmuc.cl', materias: [4,6],
-    debe_cambiar_password: true,
-  },
-  {
-    id: 99, rut: '16789012', password: 'Bienvenido2025!',
-    rol: 'profesor', nombre: 'Prof. Carlos Ruiz', iniciales: 'CR',
-    email: 'cruiz@ibcmuc.cl', materias: [5],
-    debe_cambiar_password: true,
   },
 ];
 
@@ -2695,30 +2480,32 @@ function renderMisMaterias() {
 
 // --- PROFESORES ---
 function renderProfesores() {
-  const profs = [
-    { nombre: 'Prof. Juan Pérez',  iniciales: 'JP', especialidad: 'Hermenéutica · Teología', materias: 3, email: 'jperez@ibcmuc.cl' },
-    { nombre: 'Prof. Ana López',   iniciales: 'AL', especialidad: 'AT · Ética Cristiana',      materias: 2, email: 'alopez@ibcmuc.cl' },
-    { nombre: 'Prof. Carlos Ruiz', iniciales: 'CR', especialidad: 'Homilética · Misiones',     materias: 1, email: 'cruiz@ibcmuc.cl' },
-  ];
+  const profs = USUARIOS_AUTH.filter(u => u.rol === 'profesor');
   return `
   <div class="flex-between mb-2">
-    <p class="text-muted text-sm">${profs.length} docentes registrados</p>
+    <p class="text-muted text-sm">${profs.length} docente${profs.length !== 1 ? 's' : ''} registrado${profs.length !== 1 ? 's' : ''}</p>
     <button class="btn btn-gold" onclick="openModalNuevoProf()">+ Nuevo docente</button>
   </div>
+  ${profs.length === 0 ? `
+  <div class="card" style="text-align:center;padding:40px">
+    <div style="font-size:32px;margin-bottom:12px">👨‍🏫</div>
+    <div style="font-size:15px;font-weight:500;color:var(--text);margin-bottom:6px">Sin docentes registrados</div>
+    <div style="font-size:13px;color:var(--text3)">Haz clic en "+ Nuevo docente" para agregar el primer profesor.</div>
+  </div>` : `
   <div class="grid-3">
     ${profs.map(p=>`<div class="card">
       <div class="flex-center mb-2">
         <div class="user-avatar dot-prof" style="width:42px;height:42px;font-size:14px">${p.iniciales}</div>
         <div>
           <div style="font-size:14px;font-weight:500;color:var(--text)">${p.nombre}</div>
-          <div class="text-sm text-muted">${p.especialidad}</div>
+          <div class="text-sm text-muted">${p.especialidad||'—'}</div>
         </div>
       </div>
       <div class="sep"></div>
-      <div class="row-item"><span class="text-muted">Materias</span><span class="badge b-gold">${p.materias}</span></div>
-      <div class="row-item"><span class="text-muted">Email</span><span class="text-sm" style="color:var(--blue)">${p.email}</span></div>
+      <div class="row-item"><span class="text-muted">Email</span><span class="text-sm" style="color:var(--blue)">${p.email||'—'}</span></div>
     </div>`).join('')}
-  </div>`;
+  </div>`}`;
+}
 }
 
 // ============================================
@@ -3016,7 +2803,8 @@ function openModalNuevaMateria() {
     </div>
     <div class="form-group"><label class="form-label">Profesor asignado</label>
       <select class="form-control" id="nm-prof">
-        <option>Prof. Juan Pérez</option><option>Prof. Ana López</option><option>Prof. Carlos Ruiz</option>
+        <option value="">— Sin asignar —</option>
+        ${USUARIOS_AUTH.filter(u=>u.rol==='profesor').map(p=>`<option value="${p.nombre}">${p.nombre}</option>`).join('')}
       </select>
     </div>
     <button class="btn btn-gold" onclick="guardarNuevaMateria()">Crear materia</button>
