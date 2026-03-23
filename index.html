@@ -2706,7 +2706,6 @@ async function openModalNuevoTema() {
     <button class="btn btn-gold" onclick="publicarTema()">Publicar tema</button>
   `);
 }
-}
 
 function toggleForo(id) {
   const body = document.getElementById(`foro-body-${id}`);
@@ -2802,7 +2801,6 @@ async function cargarSolicitudesEst() {
   } catch(e) {
     if (el) el.innerHTML = `<div class="card" style="color:var(--red);padding:16px">Error al cargar solicitudes.</div>`;
   }
-}
 }
 
 // --- MI PERFIL ---
@@ -2912,7 +2910,6 @@ async function cargarProfesores() {
     if (el) el.innerHTML = `<div class="card" style="color:var(--red);padding:16px">Error al cargar docentes.</div>`;
   }
 }
-}
 
 // ============================================
 // MODALS
@@ -2949,7 +2946,7 @@ async function guardarNuevoProfModal(nombre, rut, email, especialidad) {
       <div style="font-size:12px;color:var(--text3);line-height:1.6;background:var(--bg3);border-radius:8px;padding:12px">
         El docente deberá cambiar esta contraseña la primera vez que ingrese.
       </div>
-      <button class="btn btn-gold mt-2" onclick="closeModal()">Entendido</button>\`);
+      <button class="btn btn-gold mt-2" onclick="closeModal()">Entendido</button>`);
   } catch(e) { showToast('Error al registrar. El RUT puede estar duplicado.'); console.error(e); }
 }
 
@@ -3058,7 +3055,7 @@ async function guardarNuevoEst() {
       <div style="font-size:12px;color:var(--text3);line-height:1.6;background:var(--bg3);border-radius:8px;padding:12px">
         El estudiante deberá cambiar esta contraseña la primera vez que ingrese.
       </div>
-      <button class="btn btn-gold mt-2" onclick="closeModal();navigate('estudiantes')">Entendido</button>\`);
+      <button class="btn btn-gold mt-2" onclick="closeModal();navigate('estudiantes')">Entendido</button>`);
   } catch(e) { showToast('Error al registrar. El RUT puede estar duplicado.'); console.error(e); }
 }
 
