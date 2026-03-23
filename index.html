@@ -1532,9 +1532,7 @@ function renderPage(page) {
 
 // --- DASHBOARD ADMIN ---
 function renderDashAdmin() {
-  const activos = DB.estudiantes.filter(e => e.estado.toLowerCase().includes('activ')).length;
-  const egresados = DB.estudiantes.filter(e => e.estado.toLowerCase().includes('egres')).length;
-  const pendientes = DB.admisiones.filter(a => a.estado === 'Pendiente').length;
+  setTimeout(() => cargarStatsDashAdmin(), 50);
   return `
   <div class="welcome-banner">
     <div class="welcome-text">
@@ -1544,76 +1542,71 @@ function renderDashAdmin() {
     <span style="font-size:32px">✦</span>
   </div>
   <div class="stats-grid">
-    <div class="stat-card">
-      <div class="stat-num text-gold">${activos}</div>
-      <div class="stat-lbl">Estudiantes activos</div>
-    </div>
-    <div class="stat-card">
-      <div class="stat-num">${DB.materias.length}</div>
-      <div class="stat-lbl">Materias activas</div>
-    </div>
-    <div class="stat-card">
-      <div class="stat-num text-gold">${pendientes}</div>
-      <div class="stat-lbl">Admisiones pendientes</div>
-    </div>
-    <div class="stat-card">
-      <div class="stat-num">${egresados}</div>
-      <div class="stat-lbl">Egresados</div>
-    </div>
+    <div class="stat-card"><div class="stat-num text-gold" id="stat-activos">—</div><div class="stat-lbl">Estudiantes activos</div></div>
+    <div class="stat-card"><div class="stat-num" id="stat-materias">—</div><div class="stat-lbl">Materias activas</div></div>
+    <div class="stat-card"><div class="stat-num text-gold" id="stat-admisiones">—</div><div class="stat-lbl">Admisiones pendientes</div></div>
+    <div class="stat-card"><div class="stat-num" id="stat-egresados">—</div><div class="stat-lbl">Egresados</div></div>
   </div>
   <div class="grid-2">
     <div class="card">
       <div class="card-title">Admisiones recientes</div>
-      ${DB.admisiones.slice(0,3).map(a => `
-        <div class="row-item">
-          <div>
-            <div style="font-size:13px;font-weight:500;color:var(--text)">${a.nombre}</div>
-            <div class="text-sm text-muted">${a.semestre} · ${a.fecha}</div>
-          </div>
-          <span class="badge ${a.estado==='Aceptada'?'b-green':a.estado==='Pendiente'?'b-gold':'b-blue'}">${a.estado}</span>
-        </div>
-      `).join('')}
+      <div id="dash-admisiones"><div style="color:var(--text3);font-size:13px">Cargando...</div></div>
       <div class="mt-2"><button class="btn btn-outline btn-sm" onclick="navigate('admisiones')">Ver todas →</button></div>
     </div>
     <div class="card">
       <div class="card-title">Solicitudes pendientes</div>
-      ${DB.solicitudes.filter(s => s.estado !== 'Aprobada').slice(0,3).map(s => `
-        <div class="row-item">
-          <div>
-            <div style="font-size:13px;font-weight:500;color:var(--text)">${s.tipo}</div>
-            <div class="text-sm text-muted">Estudiante ID ${s.estudiante_id} · ${s.fecha}</div>
-          </div>
-          <span class="badge b-gold">${s.estado}</span>
-        </div>
-      `).join('')}
+      <div id="dash-solicitudes"><div style="color:var(--text3);font-size:13px">Cargando...</div></div>
       <div class="mt-2"><button class="btn btn-outline btn-sm" onclick="navigate('solicitudes')">Gestionar →</button></div>
-    </div>
-  </div>
-  <div class="card mt-2">
-    <div class="flex-between mb-2">
-      <div class="card-title" style="margin:0">Últimas materias</div>
-      <button class="btn btn-outline btn-sm" onclick="navigate('materias')">Ver todas →</button>
-    </div>
-    <div class="table-wrap">
-      <table>
-        <thead><tr><th>Código</th><th>Materia</th><th>Profesor</th><th>Sem.</th><th>Créditos</th></tr></thead>
-        <tbody>
-          ${DB.materias.slice(0,4).map(m => `<tr>
-            <td><span class="badge b-gray">${m.codigo}</span></td>
-            <td><strong>${m.nombre}</strong></td>
-            <td>${m.profesor}</td>
-            <td>${m.semestre}°</td>
-            <td>${m.creditos}</td>
-          </tr>`).join('')}
-        </tbody>
-      </table>
     </div>
   </div>`;
 }
 
+async function cargarStatsDashAdmin() {
+  try {
+    const [ests, mats, adms, sols] = await Promise.all([
+      API.getEstudiantes(),
+      API.getMaterias(),
+      API.getAdmisiones(),
+      API.getSolicitudes(),
+    ]);
+    DB.estudiantes = ests; DB.materias = mats; DB.admisiones = adms; DB.solicitudes = sols;
+
+    const activos   = ests.filter(e=>!['Egresado','Renunciado','Desertor'].includes(e.estado_academico)).length;
+    const egresados = ests.filter(e=>e.estado_academico==='Egresado').length;
+    const pendAdm   = adms.filter(a=>['Pendiente','En revisión'].includes(a.estado)).length;
+
+    const set = (id, val) => { const el=document.getElementById(id); if(el) el.textContent=val; };
+    set('stat-activos', activos);
+    set('stat-materias', mats.length);
+    set('stat-admisiones', pendAdm);
+    set('stat-egresados', egresados);
+
+    const elAdm = document.getElementById('dash-admisiones');
+    if (elAdm) {
+      elAdm.innerHTML = adms.slice(0,3).map(a=>`
+        <div class="row-item">
+          <div><div style="font-size:13px;font-weight:500;color:var(--text)">${a.nombre} ${a.apellido2||''}</div>
+          <div class="text-sm text-muted">${a.semestre_postula||'—'} · ${a.fecha||'—'}</div></div>
+          <span class="badge ${a.estado==='Aceptada'?'b-green':a.estado==='Pendiente'?'b-gold':'b-blue'}">${a.estado}</span>
+        </div>`).join('') || '<p class="text-sm text-muted">Sin admisiones.</p>';
+    }
+
+    const elSol = document.getElementById('dash-solicitudes');
+    if (elSol) {
+      const pend = sols.filter(s=>s.estado!=='Aprobada').slice(0,3);
+      elSol.innerHTML = pend.map(s=>`
+        <div class="row-item">
+          <div><div style="font-size:13px;font-weight:500;color:var(--text)">${s.tipo}</div>
+          <div class="text-sm text-muted">${s.fecha||'—'}</div></div>
+          <span class="badge b-gold">${s.estado}</span>
+        </div>`).join('') || '<p class="text-sm text-muted">Sin solicitudes pendientes.</p>';
+    }
+  } catch(e) { console.error('Error cargando dashboard:', e); }
+}
+
 // --- DASHBOARD PROFESOR ---
 function renderDashProfesor() {
-  const misMaterias = DB.materias.filter(m => currentUser.materias.includes(m.id));
+  setTimeout(() => cargarDashProfesor(), 50);
   return `
   <div class="welcome-banner">
     <div class="welcome-text">
@@ -1623,103 +1616,95 @@ function renderDashProfesor() {
     <span style="font-size:32px">✦</span>
   </div>
   <div class="stats-grid">
-    <div class="stat-card"><div class="stat-num text-gold">${misMaterias.length}</div><div class="stat-lbl">Materias a cargo</div></div>
-    <div class="stat-card"><div class="stat-num">47</div><div class="stat-lbl">Estudiantes totales</div></div>
-    <div class="stat-card"><div class="stat-num text-gold">5</div><div class="stat-lbl">Notas pendientes</div></div>
-    <div class="stat-card"><div class="stat-num">${DB.foro.length}</div><div class="stat-lbl">Temas en foro</div></div>
+    <div class="stat-card"><div class="stat-num text-gold" id="prof-stat-mat">—</div><div class="stat-lbl">Materias registradas</div></div>
+    <div class="stat-card"><div class="stat-num" id="prof-stat-est">—</div><div class="stat-lbl">Estudiantes totales</div></div>
+    <div class="stat-card"><div class="stat-num" id="prof-stat-foro">—</div><div class="stat-lbl">Temas en foro</div></div>
+    <div class="stat-card"><div class="stat-num" id="prof-stat-mat2">—</div><div class="stat-lbl">Material publicado</div></div>
   </div>
   <div class="grid-2">
     <div class="card">
-      <div class="card-title">Mis materias</div>
-      ${misMaterias.map(m => `
+      <div class="card-title">Materias</div>
+      <div id="prof-dash-mats"><div style="color:var(--text3);font-size:13px">Cargando...</div></div>
+    </div>
+    <div class="card">
+      <div class="card-title">Material reciente</div>
+      <div id="prof-dash-material"><div style="color:var(--text3);font-size:13px">Cargando...</div></div>
+      <div class="mt-1"><button class="btn btn-gold btn-sm" onclick="navigate('material')">+ Subir nuevo material</button></div>
+    </div>
+  </div>`;
+}
+
+async function cargarDashProfesor() {
+  try {
+    const [mats, ests, temas, material] = await Promise.all([
+      API.getMaterias(), API.getEstudiantes(),
+      API.getTemasForо(), API.getMaterial(),
+    ]);
+    DB.materias = mats; DB.estudiantes = ests; DB.material = material;
+
+    const set = (id, val) => { const el=document.getElementById(id); if(el) el.textContent=val; };
+    set('prof-stat-mat', mats.length);
+    set('prof-stat-mat2', mats.length);
+    set('prof-stat-est', ests.length);
+    set('prof-stat-foro', temas.length);
+
+    const elMats = document.getElementById('prof-dash-mats');
+    if (elMats) {
+      elMats.innerHTML = mats.length ? mats.slice(0,4).map(m=>`
         <div class="row-item">
           <div>
             <div style="font-size:13px;font-weight:500;color:var(--text)">${m.nombre}</div>
             <div class="text-sm text-muted">${m.codigo} · Sem ${m.semestre}°</div>
           </div>
           <button class="btn btn-outline btn-sm" onclick="navigate('notas')">Notas</button>
-        </div>
-      `).join('')}
-    </div>
-    <div class="card">
-      <div class="card-title">Subir material reciente</div>
-      ${DB.material.slice(0,3).map(mat => {
-        const icons = { zoom: '📹', doc: '📄', video: '▶' };
-        return `<div class="material-item">
-          <div class="material-icon mi-${mat.tipo}">${icons[mat.tipo]||'📎'}</div>
+        </div>`).join('') : '<p class="text-sm text-muted">Sin materias registradas.</p>';
+    }
+
+    const elMat = document.getElementById('prof-dash-material');
+    if (elMat) {
+      const icons = {zoom:'📹', doc:'📄', video:'▶', pdf:'📋', otro:'📎'};
+      elMat.innerHTML = material.length ? material.slice(0,3).map(m=>`
+        <div class="material-item">
+          <div class="material-icon mi-${m.tipo}">${icons[m.tipo]||'📎'}</div>
           <div>
-            <div class="material-title">${mat.titulo}</div>
-            <div class="material-sub">${DB.materias.find(m=>m.id===mat.materia_id)?.nombre || ''} · ${mat.fecha}</div>
+            <div class="material-title">${m.titulo}</div>
+            <div class="material-sub">${m.materia?.nombre||'—'} · ${m.fecha||'—'}</div>
           </div>
-        </div>`;
-      }).join('')}
-      <div class="mt-1"><button class="btn btn-gold btn-sm" onclick="navigate('material')">+ Subir nuevo material</button></div>
-    </div>
-  </div>`;
+        </div>`).join('') : '<p class="text-sm text-muted">Sin material publicado.</p>';
+    }
+  } catch(e) { console.error('Error cargando dashboard profesor:', e); }
 }
 
 // --- DASHBOARD ESTUDIANTE ---
 function renderDashEstudiante() {
-  const estId = currentUser.estudiante_id || currentUser.id;
-  const misNotas = DB.notas.filter(n => n.estudiante_id === estId);
-  const estData = DB.estudiantes.find(e => e.id === estId) || {};
-  const promedios = misNotas.map(n => {
-    const vals = [n.parcial1, n.parcial2, n.tarea, n.examen].filter(v => v !== null);
-    return vals.length ? vals.reduce((a,b)=>a+b,0)/vals.length : 0;
-  });
-  const prom = promedios.length ? (promedios.reduce((a,b)=>a+b,0)/promedios.length).toFixed(1) : '-';
-  
   const nombreCorto = currentUser.nombre.split(' ')[0];
+  setTimeout(() => cargarDashEstudiante(), 50);
   return `
   <div class="welcome-banner">
     <div class="welcome-text">
       <h2>Bienvenido/a, ${nombreCorto} ✦</h2>
-      <p>${DB.semestre} · ${estData.semestre||'—'} Semestre · ${estData.carrera||'—'}</p>
+      <p>${DB.semestre}</p>
     </div>
     <div style="text-align:right">
-      <div class="stat-num text-gold">${prom}</div>
+      <div class="stat-num text-gold" id="dash-prom">—</div>
       <div class="text-sm text-muted">Promedio general</div>
     </div>
   </div>
   <div class="stats-grid">
-    <div class="stat-card"><div class="stat-num">${misNotas.length}</div><div class="stat-lbl">Materias inscritas</div></div>
-    <div class="stat-card"><div class="stat-num text-gold">${prom}</div><div class="stat-lbl">Promedio</div></div>
-    <div class="stat-card"><div class="stat-num">${DB.solicitudes.filter(s=>s.estudiante_id===estId).length}</div><div class="stat-lbl">Mis solicitudes</div></div>
-    <div class="stat-card"><div class="stat-num">${estData.semestre||'—'}</div><div class="stat-lbl">Semestre actual</div></div>
+    <div class="stat-card"><div class="stat-num" id="dash-materias">—</div><div class="stat-lbl">Materias inscritas</div></div>
+    <div class="stat-card"><div class="stat-num text-gold" id="dash-prom2">—</div><div class="stat-lbl">Promedio</div></div>
+    <div class="stat-card"><div class="stat-num" id="dash-solicitudes">—</div><div class="stat-lbl">Mis solicitudes</div></div>
+    <div class="stat-card"><div class="stat-num" id="dash-semestre">—</div><div class="stat-lbl">Semestre actual</div></div>
   </div>
   <div class="grid-2">
     <div class="card">
       <div class="card-title">Resumen de notas</div>
-      ${misNotas.map(n => {
-        const mat = DB.materias.find(m => m.id === n.materia_id);
-        const vals = [n.parcial1, n.parcial2, n.tarea].filter(v=>v!==null);
-        const avg = vals.length ? (vals.reduce((a,b)=>a+b,0)/vals.length).toFixed(1) : '-';
-        const cls = avg >= 9 ? 'np-high' : avg >= 7 ? 'np-mid' : avg >= 6 ? 'np-low' : 'np-fail';
-        return `<div class="row-item">
-          <div style="flex:1">
-            <div style="font-size:13px;font-weight:500;color:var(--text)">${mat?.nombre || ''}</div>
-            <div class="progress-bar"><div class="progress-fill" style="width:${Math.min(parseFloat(avg)*10,100)}%"></div></div>
-          </div>
-          <div class="nota-pill ${cls}" style="margin-left:14px">${avg}</div>
-        </div>`;
-      }).join('')}
+      <div id="dash-notas-resumen"><div style="color:var(--text3);font-size:13px">Cargando...</div></div>
       <div class="mt-2"><button class="btn btn-outline btn-sm" onclick="navigate('mis_notas')">Ver detalle →</button></div>
     </div>
     <div class="card">
-      <div class="card-title">Próximas clases de hoy</div>
-      ${DB.horario.slice(0,3).map(h => {
-        const mat = DB.materias.find(m => m.id === h.materia_id);
-        const dias = ['','Lun','Mar','Mié','Jue','Vie','Sáb'];
-        const tipos = {presencial:'◈ Presencial', online:'◉ Online', hibrida:'◑ Híbrida'};
-        return `<div class="row-item">
-          <div>
-            <div style="font-size:13px;font-weight:500;color:var(--text)">${mat?.nombre}</div>
-            <div class="text-sm text-muted">${dias[h.dia]} ${h.hora} · ${h.aula}</div>
-            <div class="text-sm" style="color:var(--gold);margin-top:2px">${tipos[h.tipo]||''}</div>
-          </div>
-          ${h.link ? `<a href="${h.link}" target="_blank" class="btn btn-outline btn-sm">Unirse</a>` : ''}
-        </div>`;
-      }).join('')}
+      <div class="card-title">Horario de clases</div>
+      <div id="dash-horario"><div style="color:var(--text3);font-size:13px">Cargando...</div></div>
       <div class="mt-2"><button class="btn btn-outline btn-sm" onclick="navigate('horario')">Ver horario →</button></div>
     </div>
   </div>
@@ -1728,110 +1713,232 @@ function renderDashEstudiante() {
       <div class="card-title" style="margin:0">Material reciente</div>
       <button class="btn btn-outline btn-sm" onclick="navigate('material')">Ver todo →</button>
     </div>
-    ${DB.material.slice(0,3).map(mat => {
-      const icons = { zoom: '📹', doc: '📄', video: '▶' };
-      const clr = { zoom: 'mi-zoom', doc: 'mi-doc', video: 'mi-video' };
-      return `<div class="material-item" onclick="showToast('Abriendo: ${mat.titulo}')">
-        <div class="material-icon ${clr[mat.tipo]}">${icons[mat.tipo]||'📎'}</div>
-        <div style="flex:1">
-          <div class="material-title">${mat.titulo}</div>
-          <div class="material-sub">${DB.materias.find(m=>m.id===mat.materia_id)?.nombre||''} · ${mat.fecha}</div>
-        </div>
-        <span class="badge b-blue">${mat.tipo}</span>
-      </div>`;
-    }).join('')}
+    <div id="dash-material"><div style="color:var(--text3);font-size:13px">Cargando...</div></div>
   </div>`;
+}
+
+async function cargarDashEstudiante() {
+  const estId = currentUser.estudiante_id || currentUser.id;
+  try {
+    const [notas, estData, sols, horario, material] = await Promise.all([
+      API.getNotasEstudiante(estId),
+      API.getEstudiante(estId),
+      API.getSolicitudes(estId),
+      API.getHorario(),
+      API.getMaterial(),
+    ]);
+
+    const promedios = notas.map(n=>{
+      const v=[n.parcial1,n.parcial2,n.tarea,n.examen].filter(x=>x!==null);
+      return v.length?v.reduce((a,b)=>a+b,0)/v.length:0;
+    });
+    const prom = promedios.length?(promedios.reduce((a,b)=>a+b,0)/promedios.length).toFixed(1):'—';
+
+    const set = (id,val) => { const el=document.getElementById(id); if(el) el.textContent=val; };
+    set('dash-prom', prom); set('dash-prom2', prom);
+    set('dash-materias', notas.length);
+    set('dash-solicitudes', sols.length);
+    set('dash-semestre', estData?.semestre||'—');
+
+    // Notas resumen
+    const elNotas = document.getElementById('dash-notas-resumen');
+    if (elNotas) {
+      elNotas.innerHTML = notas.length ? notas.map(n=>{
+        const mat = n.materia||{nombre:'—'};
+        const v=[n.parcial1,n.parcial2,n.tarea].filter(x=>x!==null);
+        const avg=v.length?(v.reduce((a,b)=>a+b,0)/v.length).toFixed(1):'—';
+        const cls=avg>='9'?'np-high':avg>='7'?'np-mid':avg>='6'?'np-low':'np-fail';
+        return `<div class="row-item">
+          <div style="flex:1">
+            <div style="font-size:13px;font-weight:500;color:var(--text)">${mat.nombre}</div>
+            <div class="progress-bar"><div class="progress-fill" style="width:${Math.min(parseFloat(avg)||0*10,100)}%"></div></div>
+          </div>
+          <div class="nota-pill ${cls}" style="margin-left:14px">${avg}</div>
+        </div>`;
+      }).join('') : '<p class="text-sm text-muted">Sin notas registradas aún.</p>';
+    }
+
+    // Horario
+    const dias = ['','Lun','Mar','Mié','Jue','Vie','Sáb'];
+    const tipos = {presencial:'◈ Presencial', online:'◉ Online', hibrida:'◑ Híbrida'};
+    const elHor = document.getElementById('dash-horario');
+    if (elHor) {
+      elHor.innerHTML = horario.slice(0,3).map(h=>{
+        const mat = h.materia||{nombre:'—'};
+        return `<div class="row-item">
+          <div>
+            <div style="font-size:13px;font-weight:500;color:var(--text)">${mat.nombre}</div>
+            <div class="text-sm text-muted">${dias[h.dia]||'—'} ${h.hora} · ${h.aula||'—'}</div>
+            <div class="text-sm" style="color:var(--gold);margin-top:2px">${tipos[h.tipo]||''}</div>
+          </div>
+          ${h.link_zoom?`<a href="${h.link_zoom}" target="_blank" class="btn btn-outline btn-sm">Unirse</a>`:''}
+        </div>`;
+      }).join('') || '<p class="text-sm text-muted">Sin clases programadas.</p>';
+    }
+
+    // Material
+    const icons={zoom:'📹',doc:'📄',video:'▶',pdf:'📋',otro:'📎'};
+    const clr={zoom:'mi-zoom',doc:'mi-doc',video:'mi-video',pdf:'mi-doc',otro:'mi-doc'};
+    const elMat = document.getElementById('dash-material');
+    if (elMat) {
+      elMat.innerHTML = material.slice(0,3).map(m=>`
+        <div class="material-item" onclick="${m.link?`window.open('${m.link}','_blank')`:`showToast('${m.titulo}')`}">
+          <div class="material-icon ${clr[m.tipo]||'mi-doc'}">${icons[m.tipo]||'📎'}</div>
+          <div style="flex:1">
+            <div class="material-title">${m.titulo}</div>
+            <div class="material-sub">${m.materia?.nombre||'—'} · ${m.fecha||'—'}</div>
+          </div>
+          <span class="badge b-blue">${m.tipo}</span>
+        </div>`).join('') || '<p class="text-sm text-muted">Sin material publicado aún.</p>';
+    }
+  } catch(e) { console.error('Error cargando dashboard estudiante:', e); }
 }
 
 // --- INFO ESTUDIANTES (Admin — búsqueda por RUT) ---
 function renderInfoEstudiantes() {
+  setTimeout(() => cargarInfoEstudiantes(), 50);
   return `
   <div class="card mb-2" style="border-color:rgba(201,168,76,0.25)">
     <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
       <div style="flex:1;min-width:200px">
         <label class="form-label">Buscar por RUT del estudiante</label>
-        <input class="form-control" id="rut-buscar" placeholder="Ej: 18.234.567-8"
+        <input class="form-control" id="rut-buscar" placeholder="Ej: 18234567"
           oninput="buscarPorRut(this.value)" style="font-size:15px">
+        <div style="font-size:11px;color:var(--text3);margin-top:4px">Sin puntos ni dígito verificador</div>
       </div>
       <div style="flex:1;min-width:200px">
         <label class="form-label">O seleccionar de la lista</label>
         <select class="form-control" id="select-estudiante" onchange="seleccionarEstudiante(this.value)">
           <option value="">— Seleccionar estudiante —</option>
-          ${DB.estudiantes.map(e=>`<option value="${e.id}">${e.nombre} ${e.apellido2} · ${e.rut}</option>`).join('')}
         </select>
       </div>
     </div>
   </div>
   <div id="ficha-estudiante"></div>
   <div id="lista-todos" class="card">
-    <div class="card-title">Todos los estudiantes registrados</div>
-    <div class="table-wrap" style="border:none">
-      <table>
-        <thead><tr><th>RUT</th><th>Nombre completo</th><th>Carrera</th><th>Sem.</th><th>Estado académico</th><th>Acción</th></tr></thead>
-        <tbody>
-          ${DB.estudiantes.map(e=>{
-            const ea = DB.estadosAcademicos.find(x=>x.valor===e.estadoAcademico)||{color:'b-gray'};
-            return `<tr>
-              <td style="font-family:monospace;color:var(--text2)">${e.rut}</td>
-              <td><strong>${e.nombre} ${e.apellido2}</strong></td>
-              <td>${e.carrera}</td>
-              <td>${e.semestre}</td>
-              <td><span class="badge ${ea.color}">${e.estadoAcademico}</span></td>
-              <td><button class="btn btn-outline btn-sm" onclick="mostrarFicha(${e.id})">Ver ficha</button></td>
-            </tr>`;
-          }).join('')}
-        </tbody>
-      </table>
-    </div>
+    <div class="card-title">Cargando estudiantes...</div>
   </div>`;
 }
 
+async function cargarInfoEstudiantes() {
+  try {
+    const lista = await API.getEstudiantes();
+    DB.estudiantes = lista;
+
+    // Llenar el select
+    const sel = document.getElementById('select-estudiante');
+    if (sel) {
+      sel.innerHTML = '<option value="">— Seleccionar estudiante —</option>' +
+        lista.map(e => {
+          const nombre = e.usuario?.nombre || '—';
+          const rut    = e.rut || '—';
+          return `<option value="${e.id}">${nombre} · ${rut}</option>`;
+        }).join('');
+    }
+
+    // Llenar la tabla
+    const tbl = document.getElementById('lista-todos');
+    if (!tbl) return;
+    if (lista.length === 0) {
+      tbl.innerHTML = `<div class="card-title">Sin estudiantes registrados</div>
+        <p class="text-sm text-muted">Haz clic en "+ Nuevo estudiante" para agregar el primero.</p>`;
+      return;
+    }
+    tbl.innerHTML = `
+      <div class="card-title">Todos los estudiantes registrados (${lista.length})</div>
+      <div class="table-wrap" style="border:none">
+        <table>
+          <thead><tr><th>RUT</th><th>Nombre completo</th><th>Carrera</th><th>Sem.</th><th>Estado académico</th><th>Acción</th></tr></thead>
+          <tbody>
+            ${lista.map(e => {
+              const nombre = e.usuario?.nombre || '—';
+              const ea = DB.estadosAcademicos.find(x=>x.valor===e.estado_academico)||{color:'b-gray'};
+              return `<tr>
+                <td style="font-family:monospace;color:var(--text2)">${e.rut||'—'}</td>
+                <td><strong>${nombre}</strong></td>
+                <td>${e.carrera||'—'}</td>
+                <td>${e.semestre||'—'}</td>
+                <td><span class="badge ${ea.color}">${e.estado_academico||'—'}</span></td>
+                <td><button class="btn btn-outline btn-sm" onclick="mostrarFicha('${e.id}')">Ver ficha</button></td>
+              </tr>`;
+            }).join('')}
+          </tbody>
+        </table>
+      </div>`;
+  } catch(err) {
+    const tbl = document.getElementById('lista-todos');
+    if (tbl) tbl.innerHTML = `<div style="color:var(--red);padding:16px">Error al cargar estudiantes.</div>`;
+  }
+}
+
 function buscarPorRut(val) {
-  const clean = val.replace(/\s/g,'').toLowerCase();
-  if (clean.length < 3) { document.getElementById('ficha-estudiante').innerHTML=''; return; }
-  const est = DB.estudiantes.find(e => e.rut.replace(/\./g,'').replace(/-/g,'').toLowerCase().includes(clean.replace(/\./g,'').replace(/-/g,'')));
+  const clean = limpiarRut(val);
+  if (clean.length < 4) { document.getElementById('ficha-estudiante').innerHTML=''; return; }
+  const est = DB.estudiantes.find(e => e.rut && e.rut.replace(/\./g,'').replace(/-/g,'').includes(clean));
   if (est) mostrarFicha(est.id);
-  else document.getElementById('ficha-estudiante').innerHTML = `<div class="card mb-2" style="color:var(--text3);font-size:13px">No se encontró ningún estudiante con ese RUT.</div>`;
+  else document.getElementById('ficha-estudiante').innerHTML =
+    `<div class="card mb-2" style="color:var(--text3);font-size:13px;padding:14px">No se encontró ningún estudiante con ese RUT.</div>`;
 }
 
 function seleccionarEstudiante(id) {
   if (!id) { document.getElementById('ficha-estudiante').innerHTML=''; return; }
-  mostrarFicha(parseInt(id));
+  mostrarFicha(id);
 }
 
-function mostrarFicha(id) {
-  const e = DB.estudiantes.find(x=>x.id===id);
-  if (!e) return;
+async function mostrarFicha(id) {
+  // Buscar en cache o cargar desde Supabase
+  let e = DB.estudiantes.find(x => String(x.id) === String(id));
+  if (!e) {
+    e = await API.getEstudiante(id).catch(()=>null);
+    if (!e) return;
+  }
+
+  // Normalizar campos — Supabase usa snake_case
+  const nombre    = e.usuario?.nombre || '—';
+  const email     = e.usuario?.email  || '—';
+  const rut       = e.rut || '—';
+  const apellido2 = e.apellido2 || '';
+  const iniciales = nombre.split(' ').map(w=>w[0]).slice(0,2).join('').toUpperCase();
+
   const plan = DB.planes.find(p=>p.id===e.plan_id)||{nombre:'—',codigo:'—',semestres:'—'};
-  const ea = DB.estadosAcademicos.find(x=>x.valor===e.estadoAcademico)||{color:'b-gray',desc:''};
-  const pct = Math.round((e.creditosAprobados/e.creditosPlan)*100);
-  const notas = DB.notas.filter(n=>n.estudiante_id===e.id);
-  const promedios = notas.map(n=>{const v=[n.parcial1,n.parcial2,n.tarea,n.examen].filter(x=>x!==null);return v.length?v.reduce((a,b)=>a+b,0)/v.length:0;});
+  const ea   = DB.estadosAcademicos.find(x=>x.valor===e.estado_academico)||{color:'b-gray',desc:''};
+  const pct  = e.creditos_plan ? Math.round((e.creditos_aprobados||0)/e.creditos_plan*100) : 0;
+
+  // Notas desde Supabase
+  const notas = await API.getNotasEstudiante(id).catch(()=>[]);
+  const promedios = notas.map(n=>{
+    const v=[n.parcial1,n.parcial2,n.tarea,n.examen].filter(x=>x!==null);
+    return v.length?v.reduce((a,b)=>a+b,0)/v.length:0;
+  });
   const prom = promedios.length ? (promedios.reduce((a,b)=>a+b,0)/promedios.length).toFixed(1) : '—';
 
-  document.getElementById('lista-todos').style.display='none';
+  const listaTodos = document.getElementById('lista-todos');
+  if (listaTodos) listaTodos.style.display='none';
+
   document.getElementById('ficha-estudiante').innerHTML = `
   <div class="card mb-2 fade-in" style="border-color:rgba(201,168,76,0.2)">
     <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:20px">
       <div style="display:flex;align-items:center;gap:16px">
-        <div class="user-avatar dot-est" style="width:56px;height:56px;font-size:18px">${e.iniciales}</div>
+        <div class="user-avatar dot-est" style="width:56px;height:56px;font-size:18px">${iniciales}</div>
         <div>
-          <div style="font-family:'Playfair Display',serif;font-size:20px;color:var(--text)">${e.nombre} ${e.apellido2}</div>
-          <div style="font-size:13px;color:var(--text3);margin-top:2px">RUT: <span style="font-family:monospace;color:var(--gold)">${e.rut}</span> · ID: ${e.id}</div>
+          <div style="font-family:'Playfair Display',serif;font-size:20px;color:var(--text)">${nombre}</div>
+          <div style="font-size:13px;color:var(--text3);margin-top:2px">RUT: <span style="font-family:monospace;color:var(--gold)">${rut}</span></div>
           <div style="margin-top:6px;display:flex;gap:8px;flex-wrap:wrap">
-            <span class="badge ${ea.color}">${e.estadoAcademico}</span>
-            <span class="badge b-gray">${e.carrera}</span>
-            ${e.egreso ? `<span class="badge b-blue">Egresado ${e.egreso}</span>` : ''}
+            <span class="badge ${ea.color}">${e.estado_academico||'—'}</span>
+            <span class="badge b-gray">${e.carrera||'—'}</span>
+            ${e.fecha_egreso ? `<span class="badge b-blue">Egresado ${e.fecha_egreso}</span>` : ''}
           </div>
         </div>
       </div>
       <div style="display:flex;gap:8px;flex-wrap:wrap">
-        <button class="btn btn-gold btn-sm" onclick="editarFichaEstudiante(${e.id})">✎ Editar ficha</button>
-        <button class="btn btn-outline btn-sm" onclick="document.getElementById('lista-todos').style.display=''; document.getElementById('ficha-estudiante').innerHTML=''; document.getElementById('select-estudiante').value=''">← Volver</button>
+        <button class="btn btn-gold btn-sm" onclick="editarFichaEstudiante('${e.id}')">✎ Editar ficha</button>
+        <button class="btn btn-outline btn-sm" onclick="
+          document.getElementById('lista-todos').style.display='';
+          document.getElementById('ficha-estudiante').innerHTML='';
+          document.getElementById('select-estudiante').value=''">← Volver</button>
       </div>
     </div>
 
-    <!-- TABS dentro de la ficha -->
     <div class="tab-bar">
       <div class="tab-item active" onclick="fichaTab('personal',this)">Datos personales</div>
       <div class="tab-item" onclick="fichaTab('academico',this)">Situación académica</div>
@@ -1844,24 +1951,24 @@ function mostrarFicha(id) {
       <div class="grid-2" style="gap:14px">
         <div>
           <div class="card-title">Información personal</div>
-          ${fichaFila('Fecha nacimiento', e.fechaNacimiento)}
+          ${fichaFila('Fecha nacimiento', e.fecha_nacimiento)}
           ${fichaFila('Género', e.genero)}
           ${fichaFila('Nacionalidad', e.nacionalidad)}
-          ${fichaFila('Estado civil', e.estadoCivil)}
+          ${fichaFila('Estado civil', e.estado_civil)}
           ${fichaFila('Iglesia', e.iglesia)}
         </div>
         <div>
           <div class="card-title">Contacto</div>
-          ${fichaFila('Email institucional', e.email)}
-          ${fichaFila('Email personal', e.emailPersonal)}
+          ${fichaFila('Email institucional', email)}
+          ${fichaFila('Email personal', e.email_personal)}
           ${fichaFila('Teléfono', e.telefono)}
-          ${fichaFila('Contacto emergencia', e.contactoEmergencia)}
-          ${fichaFila('Tel. emergencia', e.telefonoEmergencia)}
+          ${fichaFila('Contacto emergencia', e.contacto_emergencia)}
+          ${fichaFila('Tel. emergencia', e.telefono_emergencia)}
         </div>
       </div>
       <div class="sep"></div>
       <div class="card-title">Dirección</div>
-      <p style="font-size:13px;color:var(--text2)">${e.direccion}, ${e.ciudad}, Región ${e.region}</p>
+      <p style="font-size:13px;color:var(--text2)">${[e.direccion,e.ciudad,e.region?'Región '+e.region:''].filter(Boolean).join(', ')||'—'}</p>
     </div>
 
     <!-- ACADÉMICO -->
@@ -1872,28 +1979,31 @@ function mostrarFicha(id) {
           ${fichaFila('Carrera', e.carrera)}
           ${fichaFila('Plan', plan.nombre)}
           ${fichaFila('Código plan', plan.codigo)}
-          ${fichaFila('Duración', plan.semestres + ' semestres')}
-          ${fichaFila('Créditos plan', e.creditosPlan + ' créditos')}
+          ${fichaFila('Duración', plan.semestres ? plan.semestres+' semestres' : '—')}
+          ${fichaFila('Créditos plan', e.creditos_plan ? e.creditos_plan+' créditos' : '—')}
         </div>
         <div>
           <div class="card-title">Situación actual</div>
-          ${fichaFila('Semestre cursado', e.semestre + ' Semestre')}
-          ${fichaFila('Fecha ingreso', e.fechaIngreso)}
-          ${fichaFila('Fecha egreso', e.egreso||'—')}
+          ${fichaFila('Semestre cursado', e.semestre ? e.semestre+' Semestre' : '—')}
+          ${fichaFila('Fecha ingreso', e.fecha_ingreso)}
+          ${fichaFila('Fecha egreso', e.fecha_egreso||'—')}
           ${fichaFila('Promedio general', prom)}
-          <div class="row-item"><span class="text-muted" style="font-size:12px">Estado académico</span>
-            <div style="text-align:right"><span class="badge ${ea.color}">${e.estadoAcademico}</span>
-            <div style="font-size:11px;color:var(--text3);margin-top:3px">${ea.desc}</div></div>
+          <div class="row-item">
+            <span class="text-muted" style="font-size:12px">Estado académico</span>
+            <div style="text-align:right">
+              <span class="badge ${ea.color}">${e.estado_academico||'—'}</span>
+              <div style="font-size:11px;color:var(--text3);margin-top:3px">${ea.desc}</div>
+            </div>
           </div>
         </div>
       </div>
-      <div class="card-title">Avance en el plan (${e.creditosAprobados} / ${e.creditosPlan} créditos)</div>
+      <div class="card-title">Avance en el plan (${e.creditos_aprobados||0} / ${e.creditos_plan||0} créditos)</div>
       <div style="display:flex;align-items:center;gap:12px">
         <div class="progress-bar" style="flex:1;height:8px"><div class="progress-fill" style="width:${pct}%"></div></div>
         <span style="font-size:13px;font-weight:500;color:var(--gold)">${pct}%</span>
       </div>
-      <div style="margin-top:8px">
-        <button class="btn btn-gold btn-sm" onclick="cambiarEstadoAcademicoModal(${e.id})">Cambiar estado académico</button>
+      <div class="mt-2">
+        <button class="btn btn-gold btn-sm" onclick="cambiarEstadoAcademicoModal('${e.id}')">Cambiar estado académico</button>
       </div>
     </div>
 
@@ -1905,14 +2015,16 @@ function mostrarFicha(id) {
           <thead><tr><th>Materia</th><th>P1</th><th>P2</th><th>Tarea</th><th>Examen</th><th>Promedio</th></tr></thead>
           <tbody>
             ${notas.map(n=>{
-              const mat=DB.materias.find(m=>m.id===n.materia_id)||{nombre:'?'};
+              const mat = n.materia||{nombre:'?'};
               const v=[n.parcial1,n.parcial2,n.tarea,n.examen].filter(x=>x!==null);
               const avg=v.length?(v.reduce((a,b)=>a+b,0)/v.length).toFixed(1):'—';
               const cls=avg==='—'?'b-gray':avg>=9?'b-green':avg>=7?'b-blue':avg>=6?'b-gold':'b-red';
-              return `<tr><td><strong>${mat.nombre}</strong></td>
+              return `<tr>
+                <td><strong>${mat.nombre}</strong></td>
                 <td>${n.parcial1??'—'}</td><td>${n.parcial2??'—'}</td>
                 <td>${n.tarea??'—'}</td><td>${n.examen??'—'}</td>
-                <td><span class="badge ${cls}">${avg}</span></td></tr>`;
+                <td><span class="badge ${cls}">${avg}</span></td>
+              </tr>`;
             }).join('')}
           </tbody>
         </table>
@@ -1922,12 +2034,12 @@ function mostrarFicha(id) {
     <!-- OBSERVACIONES -->
     <div id="ficha-tab-obs" style="display:none">
       <div class="card-title">Observaciones del registro</div>
-      <div style="background:var(--bg3);border-radius:var(--radius-sm);padding:14px;font-size:13px;color:var(--text2);line-height:1.7;min-height:80px">
+      <div style="background:var(--bg3);border-radius:var(--radius-sm);padding:14px;font-size:13px;color:var(--text2);line-height:1.7;min-height:80px;white-space:pre-wrap">
         ${e.observaciones || '<span style="color:var(--text3)">Sin observaciones registradas.</span>'}
       </div>
       <div class="mt-2">
         <textarea class="form-control" id="obs-nueva" placeholder="Agregar nueva observación..." style="min-height:70px"></textarea>
-        <button class="btn btn-gold btn-sm mt-1" onclick="guardarObservacion(${e.id})">Guardar observación</button>
+        <button class="btn btn-gold btn-sm mt-1" onclick="guardarObservacion('${e.id}')">Guardar observación</button>
       </div>
     </div>
   </div>`;
@@ -1947,51 +2059,72 @@ function fichaTab(tab, el) {
 }
 
 function cambiarEstadoAcademicoModal(id) {
-  const e = DB.estudiantes.find(x=>x.id===id);
+  const e = DB.estudiantes.find(x=>String(x.id)===String(id));
+  const nombre = e?.usuario?.nombre || '—';
+  const estadoActual = e?.estado_academico || '—';
+  const eaActual = DB.estadosAcademicos.find(x=>x.valor===estadoActual)||{color:'b-gray'};
   showModal(`<div class="modal-title"><span>Cambiar estado académico</span><button class="modal-close" onclick="closeModal()">✕</button></div>
-    <p style="font-size:13px;color:var(--text2);margin-bottom:16px">Estudiante: <strong>${e.nombre} ${e.apellido2}</strong></p>
+    <p style="font-size:13px;color:var(--text2);margin-bottom:16px">Estudiante: <strong>${nombre}</strong></p>
     <div class="form-group">
-      <label class="form-label">Estado académico actual</label>
-      <p style="font-size:13px;margin-bottom:12px"><span class="badge ${DB.estadosAcademicos.find(x=>x.valor===e.estadoAcademico)?.color||'b-gray'}">${e.estadoAcademico}</span></p>
+      <label class="form-label">Estado actual</label>
+      <p style="font-size:13px;margin-bottom:12px"><span class="badge ${eaActual.color}">${estadoActual}</span></p>
       <label class="form-label">Nuevo estado académico</label>
       <select class="form-control" id="nuevo-estado-acad">
-        ${DB.estadosAcademicos.map(ea=>`<option value="${ea.valor}" ${ea.valor===e.estadoAcademico?'selected':''}>${ea.valor} — ${ea.desc}</option>`).join('')}
+        ${DB.estadosAcademicos.map(ea=>`<option value="${ea.valor}" ${ea.valor===estadoActual?'selected':''}>${ea.valor} — ${ea.desc}</option>`).join('')}
       </select>
     </div>
     <div class="form-group">
       <label class="form-label">Motivo del cambio (opcional)</label>
       <textarea class="form-control" id="motivo-estado" placeholder="Razón del cambio de estado..."></textarea>
     </div>
-    <button class="btn btn-gold" onclick="aplicarEstadoAcademico(${id})">Aplicar cambio</button>
+    <button class="btn btn-gold" onclick="aplicarEstadoAcademico('${id}')">Aplicar cambio</button>
   `);
 }
 
-function aplicarEstadoAcademico(id) {
-  const e = DB.estudiantes.find(x=>x.id===id);
+async function aplicarEstadoAcademico(id) {
   const nuevoEstado = document.getElementById('nuevo-estado-acad').value;
-  const motivo = document.getElementById('motivo-estado').value;
-  e.estadoAcademico = nuevoEstado;
-  if (motivo) e.observaciones = (e.observaciones ? e.observaciones + '\n' : '') + `[${new Date().toLocaleDateString()}] Cambio de estado a "${nuevoEstado}": ${motivo}`;
-  closeModal();
-  showToast(`Estado actualizado a "${nuevoEstado}" ✦`);
-  mostrarFicha(id);
+  const motivo      = document.getElementById('motivo-estado').value;
+  const e = DB.estudiantes.find(x=>String(x.id)===String(id));
+  const obsActual   = e?.observaciones || '';
+  const obsNueva    = motivo
+    ? (obsActual ? obsActual+'\n' : '') + `[${new Date().toLocaleDateString()}] Cambio de estado a "${nuevoEstado}": ${motivo}`
+    : obsActual;
+
+  const ok = await API.editarEstudiante(id, { estado_academico: nuevoEstado, observaciones: obsNueva });
+  if (ok) {
+    if (e) { e.estado_academico = nuevoEstado; e.observaciones = obsNueva; }
+    closeModal();
+    showToast(`Estado actualizado a "${nuevoEstado}" ✦`);
+    mostrarFicha(id);
+  } else {
+    showToast('Error al actualizar. Intenta de nuevo.');
+  }
 }
 
-function guardarObservacion(id) {
-  const e = DB.estudiantes.find(x=>x.id===id);
+async function guardarObservacion(id) {
   const txt = document.getElementById('obs-nueva').value.trim();
   if (!txt) { showToast('Escribe una observación primero'); return; }
-  e.observaciones = (e.observaciones ? e.observaciones + '\n' : '') + `[${new Date().toLocaleDateString()}] ${txt}`;
-  showToast('Observación guardada ✦');
-  mostrarFicha(id);
-  fichaTab('obs', document.querySelectorAll('.tab-item')[3]);
+  const e = DB.estudiantes.find(x=>String(x.id)===String(id));
+  const obsActual = e?.observaciones || '';
+  const obsNueva  = (obsActual ? obsActual+'\n' : '') + `[${new Date().toLocaleDateString()}] ${txt}`;
+
+  const ok = await API.editarEstudiante(id, { observaciones: obsNueva });
+  if (ok) {
+    if (e) e.observaciones = obsNueva;
+    showToast('Observación guardada ✦');
+    mostrarFicha(id);
+  } else {
+    showToast('Error al guardar. Intenta de nuevo.');
+  }
 }
 
 function editarFichaEstudiante(id) {
-  const e = DB.estudiantes.find(x=>x.id===id);
+  const e = DB.estudiantes.find(x=>String(x.id)===String(id));
+  if (!e) return;
+  const nombre = e.usuario?.nombre || '';
   showModal(`
   <div class="modal-title">
-    <span>Editar ficha — ${e.nombre}</span>
+    <span>Editar ficha</span>
     <button class="modal-close" onclick="closeModal()">✕</button>
   </div>
   <div class="tab-bar" style="margin-bottom:16px">
@@ -2002,12 +2135,12 @@ function editarFichaEstudiante(id) {
 
   <div id="edit-panel-ep">
     <div class="grid-2">
-      <div class="form-group"><label class="form-label">Nombre</label><input class="form-control" id="ed-nombre" value="${e.nombre}"></div>
-      <div class="form-group"><label class="form-label">Apellido materno</label><input class="form-control" id="ed-apellido2" value="${e.apellido2}"></div>
+      <div class="form-group"><label class="form-label">Nombre completo</label><input class="form-control" id="ed-nombre" value="${nombre}"></div>
+      <div class="form-group"><label class="form-label">Apellido materno</label><input class="form-control" id="ed-apellido2" value="${e.apellido2||''}"></div>
     </div>
     <div class="grid-2">
-      <div class="form-group"><label class="form-label">RUT</label><input class="form-control" id="ed-rut" value="${e.rut}"></div>
-      <div class="form-group"><label class="form-label">Fecha nacimiento</label><input class="form-control" type="date" id="ed-fnac" value="${e.fechaNacimiento}"></div>
+      <div class="form-group"><label class="form-label">RUT</label><input class="form-control" id="ed-rut" value="${e.rut||''}"></div>
+      <div class="form-group"><label class="form-label">Fecha nacimiento</label><input class="form-control" type="date" id="ed-fnac" value="${e.fecha_nacimiento||''}"></div>
     </div>
     <div class="grid-2">
       <div class="form-group"><label class="form-label">Género</label>
@@ -2019,13 +2152,13 @@ function editarFichaEstudiante(id) {
       </div>
       <div class="form-group"><label class="form-label">Estado civil</label>
         <select class="form-control" id="ed-ecivil">
-          <option ${e.estadoCivil==='Soltero'?'selected':''}>Soltero</option>
-          <option ${e.estadoCivil==='Soltera'?'selected':''}>Soltera</option>
-          <option ${e.estadoCivil==='Casado'?'selected':''}>Casado</option>
-          <option ${e.estadoCivil==='Casada'?'selected':''}>Casada</option>
-          <option ${e.estadoCivil==='Viudo'?'selected':''}>Viudo</option>
-          <option ${e.estadoCivil==='Viuda'?'selected':''}>Viuda</option>
-          <option ${e.estadoCivil==='Divorciado'?'selected':''}>Divorciado/a</option>
+          <option ${e.estado_civil==='Soltero'?'selected':''}>Soltero</option>
+          <option ${e.estado_civil==='Soltera'?'selected':''}>Soltera</option>
+          <option ${e.estado_civil==='Casado'?'selected':''}>Casado</option>
+          <option ${e.estado_civil==='Casada'?'selected':''}>Casada</option>
+          <option ${e.estado_civil==='Viudo'?'selected':''}>Viudo</option>
+          <option ${e.estado_civil==='Viuda'?'selected':''}>Viuda</option>
+          <option ${e.estado_civil==='Divorciado'?'selected':''}>Divorciado/a</option>
         </select>
       </div>
     </div>
@@ -2034,13 +2167,12 @@ function editarFichaEstudiante(id) {
   </div>
 
   <div id="edit-panel-ec" style="display:none">
-    <div class="form-group"><label class="form-label">Email institucional</label><input class="form-control" id="ed-email" value="${e.email}"></div>
-    <div class="form-group"><label class="form-label">Email personal</label><input class="form-control" id="ed-emailp" value="${e.emailPersonal||''}"></div>
+    <div class="form-group"><label class="form-label">Email personal</label><input class="form-control" id="ed-emailp" value="${e.email_personal||''}"></div>
     <div class="grid-2">
       <div class="form-group"><label class="form-label">Teléfono</label><input class="form-control" id="ed-tel" value="${e.telefono||''}"></div>
-      <div class="form-group"><label class="form-label">Tel. emergencia</label><input class="form-control" id="ed-telemer" value="${e.telefonoEmergencia||''}"></div>
+      <div class="form-group"><label class="form-label">Tel. emergencia</label><input class="form-control" id="ed-telemer" value="${e.telefono_emergencia||''}"></div>
     </div>
-    <div class="form-group"><label class="form-label">Nombre contacto emergencia</label><input class="form-control" id="ed-contactemer" value="${e.contactoEmergencia||''}"></div>
+    <div class="form-group"><label class="form-label">Contacto emergencia</label><input class="form-control" id="ed-contactemer" value="${e.contacto_emergencia||''}"></div>
     <div class="form-group"><label class="form-label">Dirección</label><input class="form-control" id="ed-dir" value="${e.direccion||''}"></div>
     <div class="grid-2">
       <div class="form-group"><label class="form-label">Ciudad</label><input class="form-control" id="ed-ciudad" value="${e.ciudad||''}"></div>
@@ -2070,23 +2202,23 @@ function editarFichaEstudiante(id) {
         </select>
       </div>
       <div class="form-group"><label class="form-label">Créditos aprobados</label>
-        <input class="form-control" type="number" id="ed-cred" value="${e.creditosAprobados}" min="0">
+        <input class="form-control" type="number" id="ed-cred" value="${e.creditos_aprobados||0}" min="0">
       </div>
     </div>
     <div class="grid-2">
-      <div class="form-group"><label class="form-label">Fecha ingreso</label><input class="form-control" type="date" id="ed-fingreso" value="${e.fechaIngreso}"></div>
-      <div class="form-group"><label class="form-label">Fecha egreso (si aplica)</label><input class="form-control" type="date" id="ed-fegreso" value="${e.egreso||''}"></div>
+      <div class="form-group"><label class="form-label">Fecha ingreso</label><input class="form-control" type="date" id="ed-fingreso" value="${e.fecha_ingreso||''}"></div>
+      <div class="form-group"><label class="form-label">Fecha egreso</label><input class="form-control" type="date" id="ed-fegreso" value="${e.fecha_egreso||''}"></div>
     </div>
     <div class="form-group"><label class="form-label">Estado académico</label>
       <select class="form-control" id="ed-estado-acad">
-        ${DB.estadosAcademicos.map(ea=>`<option value="${ea.valor}" ${ea.valor===e.estadoAcademico?'selected':''}>${ea.valor}</option>`).join('')}
+        ${DB.estadosAcademicos.map(ea=>`<option value="${ea.valor}" ${ea.valor===e.estado_academico?'selected':''}>${ea.valor}</option>`).join('')}
       </select>
     </div>
   </div>
 
   <div class="sep"></div>
   <div style="display:flex;gap:8px">
-    <button class="btn btn-gold" onclick="guardarEdicionFicha(${id})">Guardar cambios</button>
+    <button class="btn btn-gold" onclick="guardarEdicionFicha('${id}')">Guardar cambios</button>
     <button class="btn btn-outline" onclick="closeModal()">Cancelar</button>
   </div>`);
 }
@@ -2100,39 +2232,48 @@ function editTab(tab, el) {
   el.classList.add('active');
 }
 
-function guardarEdicionFicha(id) {
-  const e = DB.estudiantes.find(x=>x.id===id);
-  // Personal
-  e.nombre = document.getElementById('ed-nombre').value.trim()||e.nombre;
-  e.apellido2 = document.getElementById('ed-apellido2').value.trim()||e.apellido2;
-  e.rut = document.getElementById('ed-rut').value.trim()||e.rut;
-  e.fechaNacimiento = document.getElementById('ed-fnac').value||e.fechaNacimiento;
-  e.genero = document.getElementById('ed-genero').value;
-  e.estadoCivil = document.getElementById('ed-ecivil').value;
-  e.iglesia = document.getElementById('ed-iglesia').value;
-  e.nacionalidad = document.getElementById('ed-nac').value;
-  // Contacto
-  e.email = document.getElementById('ed-email').value;
-  e.emailPersonal = document.getElementById('ed-emailp').value;
-  e.telefono = document.getElementById('ed-tel').value;
-  e.telefonoEmergencia = document.getElementById('ed-telemer').value;
-  e.contactoEmergencia = document.getElementById('ed-contactemer').value;
-  e.direccion = document.getElementById('ed-dir').value;
-  e.ciudad = document.getElementById('ed-ciudad').value;
-  e.region = document.getElementById('ed-region').value;
-  // Académico
-  e.carrera = document.getElementById('ed-carrera').value;
-  e.plan_id = parseInt(document.getElementById('ed-plan').value);
-  e.semestre = document.getElementById('ed-sem').value;
-  e.creditosAprobados = parseInt(document.getElementById('ed-cred').value)||0;
-  e.fechaIngreso = document.getElementById('ed-fingreso').value;
-  e.egreso = document.getElementById('ed-fegreso').value||null;
-  e.estadoAcademico = document.getElementById('ed-estado-acad').value;
-  e.iniciales = (e.nombre[0]+(e.apellido2[0]||'')).toUpperCase();
+async function guardarEdicionFicha(id) {
+  const cambios = {
+    apellido2:           document.getElementById('ed-apellido2').value.trim(),
+    rut:                 document.getElementById('ed-rut').value.trim(),
+    fecha_nacimiento:    document.getElementById('ed-fnac').value || null,
+    genero:              document.getElementById('ed-genero').value,
+    estado_civil:        document.getElementById('ed-ecivil').value,
+    iglesia:             document.getElementById('ed-iglesia').value,
+    nacionalidad:        document.getElementById('ed-nac').value,
+    email_personal:      document.getElementById('ed-emailp').value,
+    telefono:            document.getElementById('ed-tel').value,
+    telefono_emergencia: document.getElementById('ed-telemer').value,
+    contacto_emergencia: document.getElementById('ed-contactemer').value,
+    direccion:           document.getElementById('ed-dir').value,
+    ciudad:              document.getElementById('ed-ciudad').value,
+    region:              document.getElementById('ed-region').value,
+    carrera:             document.getElementById('ed-carrera').value,
+    plan_id:             parseInt(document.getElementById('ed-plan').value)||null,
+    semestre:            document.getElementById('ed-sem').value,
+    creditos_aprobados:  parseInt(document.getElementById('ed-cred').value)||0,
+    fecha_ingreso:       document.getElementById('ed-fingreso').value || null,
+    fecha_egreso:        document.getElementById('ed-fegreso').value || null,
+    estado_academico:    document.getElementById('ed-estado-acad').value,
+  };
 
-  closeModal();
-  showToast('Ficha actualizada correctamente ✦');
-  mostrarFicha(id);
+  // También actualizar nombre en tabla usuarios
+  const nombreNuevo = document.getElementById('ed-nombre').value.trim();
+  if (nombreNuevo) {
+    await SB.from('usuarios').update({ nombre: nombreNuevo }).eq('id', id);
+  }
+
+  const ok = await API.editarEstudiante(id, cambios);
+  if (ok) {
+    // Actualizar cache local
+    const e = DB.estudiantes.find(x=>String(x.id)===String(id));
+    if (e) { Object.assign(e, cambios); if (e.usuario) e.usuario.nombre = nombreNuevo; }
+    closeModal();
+    showToast('Ficha actualizada correctamente ✦');
+    mostrarFicha(id);
+  } else {
+    showToast('Error al guardar. Intenta de nuevo.');
+  }
 }
 
 // --- ESTUDIANTES ---
@@ -2367,90 +2508,145 @@ async function desactivarMateria(id) {
 
 // --- HORARIO ---
 function renderHorario() {
-  const dias = ['','Lun','Mar','Mié','Jue','Vie','Sáb'];
-  const horas = ['08:00','09:00','10:00','11:00','12:00'];
-  const colores = ['hgc-blue','hgc-green','hgc-gold','hgc-red','hgc-blue','hgc-green'];
-  
-  let grid = `<div class="horario-grid">
-    <div class="hg-header"></div>
-    ${dias.slice(1).map(d=>`<div class="hg-header">${d}</div>`).join('')}`;
-  
-  horas.forEach(hora => {
-    grid += `<div class="hg-time">${hora}</div>`;
-    for (let dia=1; dia<=6; dia++) {
-      const clase = DB.horario.find(h => h.hora===hora && h.dia===dia);
-      if (clase) {
-        const mat = DB.materias.find(m=>m.id===clase.materia_id);
-        const col = colores[(clase.materia_id-1) % colores.length];
-        grid += `<div><div class="hg-class ${col}" onclick="${clase.link?`window.open('${clase.link}')`:`showToast('Clase presencial: ${mat?.nombre}')`}">
-          <div>${mat?.nombre?.split(' ')[0]}</div>
-          <div style="font-size:10px;opacity:0.8">${clase.aula}</div>
-          ${clase.link?`<div style="font-size:9px;opacity:0.7">🔗 Online</div>`:''}
-        </div></div>`;
-      } else {
-        grid += `<div class="hg-cell"></div>`;
+  setTimeout(() => cargarHorario(), 50);
+  return `
+  <div class="card mb-2" id="horario-grid-card">
+    <div style="text-align:center;padding:40px;color:var(--text3)">Cargando horario...</div>
+  </div>
+  <div class="card" id="horario-links-card" style="display:none">
+    <div class="card-title">Links de clases activas</div>
+    <div id="horario-links"></div>
+  </div>`;
+}
+
+async function cargarHorario() {
+  const el = document.getElementById('horario-grid-card');
+  if (!el) return;
+  try {
+    const [horario, mats] = await Promise.all([API.getHorario(), API.getMaterias()]);
+    DB.horario = horario; DB.materias = mats;
+    const matMap = {};
+    mats.forEach(m => matMap[m.id] = m);
+
+    const dias = ['','Lun','Mar','Mié','Jue','Vie','Sáb'];
+    const horas = ['08:00','09:00','10:00','11:00','12:00','13:00'];
+    const colores = ['hgc-blue','hgc-green','hgc-gold','hgc-red','hgc-blue','hgc-green'];
+
+    let grid = `<div class="horario-grid">
+      <div class="hg-header"></div>
+      ${dias.slice(1).map(d=>`<div class="hg-header">${d}</div>`).join('')}`;
+
+    horas.forEach(hora => {
+      grid += `<div class="hg-time">${hora}</div>`;
+      for (let dia=1; dia<=6; dia++) {
+        const clase = horario.find(h => h.hora===hora && h.dia===dia);
+        if (clase) {
+          const mat = matMap[clase.materia_id];
+          const col = colores[(clase.materia_id||0) % colores.length];
+          const link = clase.link_zoom;
+          grid += `<div><div class="hg-class ${col}" onclick="${link?`window.open('${link}','_blank')`:`showToast('Clase: ${mat?.nombre||''}')`}">
+            <div>${mat?.nombre?.split(' ')[0]||'—'}</div>
+            <div style="font-size:10px;opacity:0.8">${clase.aula||''}</div>
+            ${link?`<div style="font-size:9px;opacity:0.7">🔗 Online</div>`:''}
+          </div></div>`;
+        } else {
+          grid += `<div class="hg-cell"></div>`;
+        }
+      }
+    });
+    grid += '</div>';
+
+    el.innerHTML = `
+      <div class="flex-between mb-2">
+        <div class="card-title" style="margin:0">Semana actual — ${DB.semestre}</div>
+        <div style="display:flex;gap:8px">
+          <div class="hg-class hgc-blue" style="padding:2px 8px;font-size:11px">Presencial</div>
+          <div class="hg-class hgc-green" style="padding:2px 8px;font-size:11px">Online</div>
+          <div class="hg-class hgc-gold" style="padding:2px 8px;font-size:11px">Híbrida</div>
+        </div>
+      </div>
+      ${horario.length === 0 ? '<p class="text-sm text-muted">Sin horario registrado aún.</p>' : grid}`;
+
+    // Links
+    const linksConZoom = horario.filter(h=>h.link_zoom);
+    if (linksConZoom.length > 0) {
+      const elLinks = document.getElementById('horario-links-card');
+      const elLinksContent = document.getElementById('horario-links');
+      if (elLinks) elLinks.style.display = '';
+      if (elLinksContent) {
+        elLinksContent.innerHTML = linksConZoom.map(h=>{
+          const mat = matMap[h.materia_id];
+          return `<div class="row-item">
+            <div>
+              <div style="font-size:13px;font-weight:500;color:var(--text)">${mat?.nombre||'—'}</div>
+              <div class="text-sm text-muted">${dias[h.dia]||'—'} ${h.hora} · ${h.aula||'—'}</div>
+            </div>
+            <a href="${h.link_zoom}" target="_blank" class="btn btn-gold btn-sm">🔗 Unirse a Zoom</a>
+          </div>`;
+        }).join('');
       }
     }
-  });
-  grid += '</div>';
-  
-  const tipos = [
-    {tipo:'presencial', label:'Presencial', color:'hgc-blue'},
-    {tipo:'online', label:'Online (Zoom)', color:'hgc-green'},
-    {tipo:'hibrida', label:'Híbrida', color:'hgc-gold'},
-  ];
-  
-  return `
-  <div class="card mb-2">
-    <div class="flex-between mb-2">
-      <div class="card-title" style="margin:0">Semana actual — ${DB.semestre}</div>
-      <div style="display:flex;gap:8px">
-        ${tipos.map(t=>`<div style="display:flex;align-items:center;gap:5px">
-          <div class="hg-class ${t.color}" style="padding:2px 8px;font-size:11px">${t.label}</div>
-        </div>`).join('')}
-      </div>
-    </div>
-    ${grid}
-  </div>
-  <div class="card">
-    <div class="card-title">Links de clases activas</div>
-    ${DB.horario.filter(h=>h.link).map(h => {
-      const mat = DB.materias.find(m=>m.id===h.materia_id);
-      const dias = ['','Lun','Mar','Mié','Jue','Vie','Sáb'];
-      return `<div class="row-item">
-        <div>
-          <div style="font-size:13px;font-weight:500;color:var(--text)">${mat?.nombre}</div>
-          <div class="text-sm text-muted">${dias[h.dia]} ${h.hora} · ${h.aula}</div>
-        </div>
-        <a href="${h.link}" target="_blank" class="btn btn-gold btn-sm">🔗 Unirse a Zoom</a>
-      </div>`;
-    }).join('')}
-  </div>`;
+  } catch(e) {
+    if (el) el.innerHTML = `<div style="color:var(--red);padding:16px">Error al cargar horario.</div>`;
+  }
 }
 
 // --- NOTAS (Profesor) ---
 function renderNotas() {
-  const misMaterias = DB.materias.filter(m => currentUser.materias?.includes(m.id));
+  setTimeout(() => cargarMateriasParaNotas(), 50);
   return `
   <div class="card mb-2">
     <div class="card-title">Selecciona una materia para ingresar notas</div>
-    <div class="grid-3">
-      ${misMaterias.map(m=>`
-        <div class="foro-post" onclick="mostrarNotatMateria(${m.id})">
-          <div style="font-size:14px;font-weight:500;color:var(--text)">${m.nombre}</div>
-          <div class="text-sm text-muted mt-1">${m.codigo} · ${DB.notas.filter(n=>n.materia_id===m.id).length} estudiantes con notas</div>
-        </div>
-      `).join('')}
+    <div class="grid-3" id="notas-materias-grid">
+      <div style="color:var(--text3);font-size:13px">Cargando materias...</div>
     </div>
   </div>
   <div id="notas-tabla"></div>`;
 }
 
-function mostrarNotatMateria(matId) {
-  const mat = DB.materias.find(m=>m.id===matId);
-  const notasMat = DB.notas.filter(n=>n.materia_id===matId);
-  
-  document.getElementById('notas-tabla').innerHTML = `
+async function cargarMateriasParaNotas() {
+  const el = document.getElementById('notas-materias-grid');
+  if (!el) return;
+  try {
+    const mats = await API.getMaterias();
+    DB.materias = mats;
+    if (mats.length === 0) {
+      el.innerHTML = `<div style="color:var(--text3);font-size:13px">Sin materias registradas.</div>`; return;
+    }
+    el.innerHTML = mats.map(m=>`
+      <div class="foro-post" onclick="mostrarNotatMateria(${m.id})">
+        <div style="font-size:14px;font-weight:500;color:var(--text)">${m.nombre}</div>
+        <div class="text-sm text-muted mt-1">${m.codigo}</div>
+      </div>`).join('');
+  } catch(e) {
+    if (el) el.innerHTML = `<div style="color:var(--red);font-size:13px">Error al cargar materias.</div>`;
+  }
+}
+
+async function mostrarNotatMateria(matId) {
+  const mat = DB.materias.find(m => m.id === matId);
+  if (!mat) return;
+
+  const tabla = document.getElementById('notas-tabla');
+  tabla.innerHTML = `<div class="card fade-in" style="text-align:center;padding:24px;color:var(--text3)">Cargando notas de ${mat.nombre}...</div>`;
+
+  let notasMat = [];
+  try {
+    notasMat = await API.getNotasMateria(matId);
+  } catch(e) {
+    tabla.innerHTML = `<div class="card fade-in" style="color:var(--red);padding:16px">Error al cargar notas.</div>`;
+    return;
+  }
+
+  if (notasMat.length === 0) {
+    tabla.innerHTML = `<div class="card fade-in" style="text-align:center;padding:40px">
+      <div style="font-size:13px;color:var(--text3)">No hay estudiantes con notas registradas en esta materia.<br>
+      Asegúrate de que los estudiantes estén inscritos y tengan registros en la tabla <code>notas</code>.</div>
+    </div>`;
+    return;
+  }
+
+  tabla.innerHTML = `
     <div class="card fade-in">
       <div class="flex-between mb-2">
         <div class="card-title" style="margin:0">${mat.nombre} — Registro de notas</div>
@@ -2460,16 +2656,16 @@ function mostrarNotatMateria(matId) {
         <table>
           <thead><tr><th>Estudiante</th><th>Parcial 1</th><th>Parcial 2</th><th>Tarea</th><th>Examen final</th><th>Promedio</th></tr></thead>
           <tbody>
-            ${notasMat.map(n=>{
-              const est = DB.estudiantes.find(e=>e.id===n.estudiante_id)||{nombre:'Estudiante '+n.estudiante_id};
-              const vals = [n.parcial1,n.parcial2,n.tarea,n.examen].filter(v=>v!==null);
-              const avg = vals.length ? (vals.reduce((a,b)=>a+b,0)/vals.length).toFixed(1) : '-';
-              const cls = avg>=7?'np-mid':'np-low';
+            ${notasMat.map(n => {
+              const nombre = n.estudiante?.usuario?.nombre || 'Estudiante ' + n.estudiante_id;
+              const vals = [n.parcial1, n.parcial2, n.tarea, n.examen].filter(v => v !== null && v !== undefined);
+              const avg = vals.length ? (vals.reduce((a, b) => a + b, 0) / vals.length).toFixed(1) : '-';
+              const cls = avg !== '-' && avg >= 7 ? 'np-mid' : 'np-low';
               return `<tr>
-                <td><strong>${est.nombre}</strong></td>
-                ${['parcial1','parcial2','tarea','examen'].map(k=>`
+                <td><strong>${nombre}</strong></td>
+                ${['parcial1', 'parcial2', 'tarea', 'examen'].map(k => `
                   <td><input type="number" min="1" max="10" step="0.1"
-                    value="${n[k]??''}" placeholder="—"
+                    value="${n[k] ?? ''}" placeholder="—"
                     data-est="${n.estudiante_id}" data-mat="${matId}" data-campo="${k}"
                     oninput="actualizarNota(this)"
                     style="width:60px;text-align:center;background:var(--bg3);border:1px solid var(--border);
@@ -2485,19 +2681,23 @@ function mostrarNotatMateria(matId) {
 }
 
 function actualizarNota(input) {
-  const estId = parseInt(input.dataset.est);
-  const matId = parseInt(input.dataset.mat);
-  const campo = input.dataset.campo;
-  const val = parseFloat(input.value);
-  
-  const nota = DB.notas.find(n=>n.estudiante_id===estId && n.materia_id===matId);
-  if (nota) nota[campo] = isNaN(val) ? null : Math.min(10, Math.max(0, val));
-  
-  if (nota) {
-    const vals = [nota.parcial1,nota.parcial2,nota.tarea,nota.examen].filter(v=>v!==null);
-    const avg = vals.length ? (vals.reduce((a,b)=>a+b,0)/vals.length).toFixed(1) : '-';
-    const el = document.getElementById(`avg-${estId}-${matId}`);
-    if (el) { el.textContent = avg; el.className = `nota-pill ${avg>=7?'np-mid':'np-low'}`; }
+  // Recalcula el promedio visualmente en el DOM — sin depender de DB.notas
+  const estId = input.dataset.est;
+  const matId  = input.dataset.mat;
+  const fila   = input.closest('tr');
+  if (!fila) return;
+
+  const vals = [];
+  fila.querySelectorAll('input[type="number"]').forEach(inp => {
+    const v = parseFloat(inp.value);
+    if (!isNaN(v)) vals.push(Math.min(10, Math.max(0, v)));
+  });
+
+  const avg = vals.length ? (vals.reduce((a, b) => a + b, 0) / vals.length).toFixed(1) : '-';
+  const el  = document.getElementById(`avg-${estId}-${matId}`);
+  if (el) {
+    el.textContent = avg;
+    el.className = `nota-pill ${avg !== '-' && avg >= 7 ? 'np-mid' : 'np-low'}`;
   }
 }
 
@@ -2524,87 +2724,111 @@ async function guardarNotas(matId) {
 
 // --- NOTAS ADMIN ---
 function renderNotasAdmin() {
-  return `
-  <div class="card">
-    <div class="card-title">Reporte general de notas — ${DB.semestre}</div>
-    <div class="table-wrap">
-      <table>
+  setTimeout(() => cargarNotasAdmin(), 50);
+  return `<div id="notas-admin-content"><div style="text-align:center;padding:40px;color:var(--text3)">Cargando notas...</div></div>`;
+}
+
+async function cargarNotasAdmin() {
+  const el = document.getElementById('notas-admin-content');
+  if (!el) return;
+  try {
+    const [ests, mats] = await Promise.all([API.getEstudiantes(), API.getMaterias()]);
+    // Cargar notas de todos los estudiantes
+    const todasNotas = [];
+    for (const est of ests) {
+      const notas = await API.getNotasEstudiante(est.id);
+      notas.forEach(n => todasNotas.push({ ...n, _est: est }));
+    }
+    if (todasNotas.length === 0) {
+      el.innerHTML = `<div class="card" style="text-align:center;padding:40px">
+        <div style="font-size:13px;color:var(--text3)">Sin notas registradas aún.</div>
+      </div>`; return;
+    }
+    const matMap = {};
+    mats.forEach(m => matMap[m.id] = m);
+    el.innerHTML = `<div class="card">
+      <div class="card-title">Reporte general de notas — ${DB.semestre}</div>
+      <div class="table-wrap"><table>
         <thead><tr><th>Estudiante</th><th>Materia</th><th>P1</th><th>P2</th><th>Tarea</th><th>Promedio</th></tr></thead>
-        <tbody>
-          ${DB.notas.map(n=>{
-            const est = DB.estudiantes.find(e=>e.id===n.estudiante_id)||{nombre:'ID '+n.estudiante_id};
-            const mat = DB.materias.find(m=>m.id===n.materia_id)||{nombre:'?'};
-            const vals = [n.parcial1,n.parcial2,n.tarea].filter(v=>v!==null);
-            const avg = vals.length ? (vals.reduce((a,b)=>a+b,0)/vals.length).toFixed(1) : '-';
-            const cls = avg>=7?'b-green':avg>=6?'b-gold':'b-red';
-            return `<tr>
-              <td><strong>${est.nombre}</strong></td>
-              <td>${mat.nombre}</td>
-              <td>${n.parcial1??'—'}</td>
-              <td>${n.parcial2??'—'}</td>
-              <td>${n.tarea??'—'}</td>
-              <td><span class="badge ${cls}">${avg}</span></td>
-            </tr>`;
-          }).join('')}
-        </tbody>
-      </table>
-    </div>
-  </div>`;
+        <tbody>${todasNotas.map(n=>{
+          const nombre = n._est?.usuario?.nombre || '—';
+          const mat = matMap[n.materia_id]||{nombre:'?'};
+          const avg = n.promedio !== undefined ? n.promedio : '—';
+          const cls = !avg||avg==='—'?'b-gray':avg>=7?'b-green':avg>=6?'b-gold':'b-red';
+          return `<tr>
+            <td><strong>${nombre}</strong></td>
+            <td>${mat.nombre}</td>
+            <td>${n.parcial1??'—'}</td><td>${n.parcial2??'—'}</td><td>${n.tarea??'—'}</td>
+            <td><span class="badge ${cls}">${avg??'—'}</span></td>
+          </tr>`;
+        }).join('')}</tbody>
+      </table></div>
+    </div>`;
+  } catch(e) {
+    if (el) el.innerHTML = `<div class="card" style="color:var(--red);padding:16px">Error al cargar notas.</div>`;
+  }
 }
 
 // --- MIS NOTAS (Estudiante) ---
 function renderMisNotas() {
-  const estId = currentUser.estudiante_id || currentUser.id;
-  const misNotas = DB.notas.filter(n=>n.estudiante_id===estId);
-  return `
-  <div class="card">
-    <div class="card-title">Mis notas — ${DB.semestre}</div>
-    <div class="table-wrap" style="border:none">
-      <table>
-        <thead><tr><th>Materia</th><th>Parcial 1</th><th>Parcial 2</th><th>Tarea</th><th>Examen</th><th>Promedio</th></tr></thead>
-        <tbody>
-          ${misNotas.map(n=>{
-            const mat = DB.materias.find(m=>m.id===n.materia_id);
-            const vals = [n.parcial1,n.parcial2,n.tarea,n.examen].filter(v=>v!==null);
-            const avg = vals.length ? (vals.reduce((a,b)=>a+b,0)/vals.length).toFixed(1) : 'Pend.';
-            const cls = avg==='Pend.'?'np-low':avg>=9?'np-high':avg>=7?'np-mid':avg>=6?'np-low':'np-fail';
-            return `<tr>
-              <td><strong>${mat?.nombre}</strong></td>
-              <td>${n.parcial1??'—'}</td>
-              <td>${n.parcial2??'—'}</td>
-              <td>${n.tarea??'—'}</td>
-              <td>${n.examen??'Pendiente'}</td>
-              <td><div class="nota-pill ${cls}">${avg}</div></td>
-            </tr>`;
-          }).join('')}
-        </tbody>
-      </table>
-    </div>
-  </div>
-  <div class="card mt-2">
-    <div class="card-title">Mi progreso académico</div>
-    ${misNotas.map(n=>{
-      const mat = DB.materias.find(m=>m.id===n.materia_id);
-      const vals = [n.parcial1,n.parcial2,n.tarea].filter(v=>v!==null);
-      const avg = vals.length ? parseFloat((vals.reduce((a,b)=>a+b,0)/vals.length).toFixed(1)) : 0;
-      return `<div class="row-item">
-        <div style="flex:1">
-          <div style="font-size:13px;color:var(--text);margin-bottom:4px">${mat?.nombre}</div>
-          <div class="progress-bar"><div class="progress-fill" style="width:${avg*10}%"></div></div>
-        </div>
-        <span style="font-size:13px;font-weight:500;color:var(--gold);margin-left:16px">${avg || '—'}</span>
-      </div>`;
-    }).join('')}
-  </div>`;
+  setTimeout(() => cargarMisNotas(), 50);
+  return `<div id="mis-notas-content"><div style="text-align:center;padding:40px;color:var(--text3)">Cargando tus notas...</div></div>`;
 }
+
+async function cargarMisNotas() {
+  const el = document.getElementById('mis-notas-content');
+  if (!el) return;
+  const estId = currentUser.estudiante_id || currentUser.id;
+  try {
+    const notas = await API.getNotasEstudiante(estId);
+    if (notas.length === 0) {
+      el.innerHTML = `<div class="card" style="text-align:center;padding:40px">
+        <div style="font-size:13px;color:var(--text3)">No tienes notas registradas aún.</div>
+      </div>`; return;
+    }
+    el.innerHTML = `
+    <div class="card">
+      <div class="card-title">Mis notas — ${DB.semestre}</div>
+      <div class="table-wrap" style="border:none"><table>
+        <thead><tr><th>Materia</th><th>Parcial 1</th><th>Parcial 2</th><th>Tarea</th><th>Examen</th><th>Promedio</th></tr></thead>
+        <tbody>${notas.map(n=>{
+          const mat = n.materia||{nombre:'?'};
+          const avg = n.promedio !== undefined && n.promedio !== null ? n.promedio : 'Pend.';
+          const cls = avg==='Pend.'?'np-low':avg>=9?'np-high':avg>=7?'np-mid':avg>=6?'np-low':'np-fail';
+          return `<tr>
+            <td><strong>${mat.nombre}</strong></td>
+            <td>${n.parcial1??'—'}</td><td>${n.parcial2??'—'}</td>
+            <td>${n.tarea??'—'}</td><td>${n.examen??'Pendiente'}</td>
+            <td><div class="nota-pill ${cls}">${avg}</div></td>
+          </tr>`;
+        }).join('')}</tbody>
+      </table></div>
+    </div>
+    <div class="card mt-2">
+      <div class="card-title">Mi progreso académico</div>
+      ${notas.map(n=>{
+        const mat = n.materia||{nombre:'?'};
+        const avg = parseFloat(n.promedio)||0;
+        return `<div class="row-item">
+          <div style="flex:1">
+            <div style="font-size:13px;color:var(--text);margin-bottom:4px">${mat.nombre}</div>
+            <div class="progress-bar"><div class="progress-fill" style="width:${avg*10}%"></div></div>
+          </div>
+          <span style="font-size:13px;font-weight:500;color:var(--gold);margin-left:16px">${avg||'—'}</span>
+        </div>`;
+      }).join('')}
+    </div>`;
+  } catch(e) {
+    if (el) el.innerHTML = `<div class="card" style="color:var(--red);padding:16px">Error al cargar notas.</div>`;
+  }
+}
+
+
 
 // --- MATERIAL ---
 function renderMaterial() {
+  setTimeout(() => cargarMaterial(), 50);
   const isProf = currentUser.rol === 'profesor';
-  const mats = DB.material;
-  const icons = { zoom: '📹', doc: '📄', video: '▶' };
-  const clrs = { zoom: 'mi-zoom', doc: 'mi-doc', video: 'mi-video' };
-  
   return `
   ${isProf ? `
   <div class="card mb-2">
@@ -2614,7 +2838,7 @@ function renderMaterial() {
         <div class="form-group">
           <label class="form-label">Materia</label>
           <select class="form-control" id="mat-materia">
-            ${DB.materias.filter(m=>currentUser.materias?.includes(m.id)).map(m=>`<option value="${m.id}">${m.nombre}</option>`).join('')}
+            ${DB.materias.map(m=>`<option value="${m.id}">${m.nombre}</option>`).join('')}
           </select>
         </div>
         <div class="form-group">
@@ -2629,6 +2853,8 @@ function renderMaterial() {
             <option value="zoom">Link de Zoom</option>
             <option value="doc">Documento / PDF</option>
             <option value="video">Grabación de video</option>
+            <option value="pdf">PDF</option>
+            <option value="otro">Otro</option>
           </select>
         </div>
         <div class="form-group">
@@ -2641,18 +2867,53 @@ function renderMaterial() {
   </div>` : ''}
   <div class="card">
     <div class="card-title">Todo el material disponible</div>
-    ${mats.map(mat => {
-      const materia = DB.materias.find(m=>m.id===mat.materia_id);
-      return `<div class="material-item" onclick="${mat.link && mat.link!='#' ? `window.open('${mat.link}','_blank')` : `showToast('Archivo: ${mat.titulo}')`}">
+    <div id="material-lista"><div style="text-align:center;padding:30px;color:var(--text3)">Cargando...</div></div>
+  </div>`;
+}
+
+async function cargarMaterial() {
+  const el = document.getElementById('material-lista');
+  if (!el) return;
+
+  // Also populate materia select for profesor
+  if (currentUser.rol === 'profesor') {
+    try {
+      const mats = await API.getMaterias();
+      DB.materias = mats;
+      const sel = document.getElementById('mat-materia');
+      if (sel) sel.innerHTML = mats.map(m=>`<option value="${m.id}">${m.nombre}</option>`).join('');
+    } catch(e) {}
+  }
+
+  try {
+    const lista = await API.getMaterial();
+    DB.material = lista;
+    const icons = {zoom:'📹', doc:'📄', video:'▶', pdf:'📋', otro:'📎'};
+    const clrs  = {zoom:'mi-zoom', doc:'mi-doc', video:'mi-video', pdf:'mi-doc', otro:'mi-doc'};
+
+    if (lista.length === 0) {
+      el.innerHTML = `<div style="text-align:center;padding:30px">
+        <div style="font-size:13px;color:var(--text3)">Sin material publicado aún.</div>
+      </div>`; return;
+    }
+
+    el.innerHTML = lista.map(mat => {
+      const link = mat.link || '#';
+      const onclick = link !== '#'
+        ? `window.open('${link}','_blank')`
+        : `showToast('Sin link disponible para: ${mat.titulo.replace(/'/g,"\\'")}')`;
+      return `<div class="material-item" onclick="${onclick}" style="cursor:pointer">
         <div class="material-icon ${clrs[mat.tipo]||'mi-doc'}">${icons[mat.tipo]||'📎'}</div>
         <div style="flex:1">
           <div class="material-title">${mat.titulo}</div>
-          <div class="material-sub">${materia?.nombre||''} · ${mat.fecha}</div>
+          <div class="material-sub">${mat.materia?.nombre||'—'} · ${mat.fecha||'—'}</div>
         </div>
         <span class="badge ${mat.tipo==='zoom'?'b-blue':mat.tipo==='video'?'b-red':'b-green'}">${mat.tipo}</span>
       </div>`;
-    }).join('')}
-  </div>`;
+    }).join('');
+  } catch(e) {
+    if (el) el.innerHTML = `<div style="color:var(--red);padding:16px">Error al cargar material.</div>`;
+  }
 }
 
 async function subirMaterial() {
@@ -2852,34 +3113,44 @@ async function cargarSolicitudesEst() {
 
 // --- MI PERFIL ---
 function renderMiPerfil() {
-  const estId = currentUser.estudiante_id || currentUser.id;
+  setTimeout(() => cargarMiPerfil(), 50);
+  return `<div id="perfil-content"><div style="text-align:center;padding:40px;color:var(--text3)">Cargando perfil...</div></div>`;
+}
+
+async function cargarMiPerfil() {
+  const el = document.getElementById('perfil-content');
+  if (!el) return;
   const u = currentUser;
-  const est = DB.estudiantes.find(e=>e.id===estId) || {};
-  return `
+  const estId = u.estudiante_id || u.id;
+  let est = {};
+  try {
+    est = await API.getEstudiante(estId) || {};
+  } catch(e) {}
+
+  el.innerHTML = `
   <div class="profile-header">
-    <div class="profile-avatar-lg dot-est">${u.iniciales}</div>
+    <div class="profile-avatar-lg dot-est">${u.iniciales||'?'}</div>
     <div>
       <div class="profile-name">${u.nombre}</div>
       <div class="profile-detail">${est.carrera||'—'} · ${est.semestre||'—'} Semestre</div>
-      <div class="profile-detail">Ingreso: ${est.ingreso||'—'} · <span class="badge b-green" style="font-size:11px">${est.estadoAcademico||'Activo'}</span></div>
+      <div class="profile-detail">Fecha ingreso: ${est.fecha_ingreso||'—'} · <span class="badge b-green" style="font-size:11px">${est.estado_academico||'Activo'}</span></div>
     </div>
   </div>
   <div class="grid-2">
     <div class="card">
       <div class="card-title">Información personal</div>
-      <div class="row-item"><span class="text-muted">Correo institucional</span><span style="color:var(--text)">${u.email}</span></div>
-      <div class="row-item"><span class="text-muted">Email personal</span><span style="color:var(--text)">${est.emailPersonal||'—'}</span></div>
+      <div class="row-item"><span class="text-muted">Correo institucional</span><span style="color:var(--text)">${u.email||'—'}</span></div>
+      <div class="row-item"><span class="text-muted">Email personal</span><span style="color:var(--text)">${est.email_personal||'—'}</span></div>
       <div class="row-item"><span class="text-muted">Teléfono</span><span style="color:var(--text)">${est.telefono||'—'}</span></div>
-      <div class="row-item"><span class="text-muted">RUT</span><span style="color:var(--text);font-family:monospace">${est.rut||'—'}</span></div>
+      <div class="row-item"><span class="text-muted">RUT</span><span style="color:var(--text);font-family:monospace">${est.rut||u.rut||'—'}</span></div>
       <button class="btn btn-outline btn-sm mt-2" onclick="showToast('Contacta al administrador para actualizar tus datos personales')">Solicitar cambio de datos</button>
     </div>
     <div class="card">
       <div class="card-title">Información académica</div>
       <div class="row-item"><span class="text-muted">Carrera</span><span style="color:var(--text)">${est.carrera||'—'}</span></div>
       <div class="row-item"><span class="text-muted">Semestre</span><span style="color:var(--text)">${est.semestre||'—'}</span></div>
-      <div class="row-item"><span class="text-muted">Año ingreso</span><span style="color:var(--text)">${est.ingreso||'—'}</span></div>
-      <div class="row-item"><span class="text-muted">Estado académico</span><span class="badge b-green">${est.estadoAcademico||'Regular'}</span></div>
-      <div class="row-item"><span class="text-muted">Créditos aprobados</span><span style="color:var(--gold);font-weight:500">${est.creditosAprobados||0} / ${est.creditosPlan||0}</span></div>
+      <div class="row-item"><span class="text-muted">Estado académico</span><span class="badge b-green">${est.estado_academico||'Regular'}</span></div>
+      <div class="row-item"><span class="text-muted">Créditos aprobados</span><span style="color:var(--gold);font-weight:500">${est.creditos_aprobados||0} / ${est.creditos_plan||0}</span></div>
     </div>
   </div>
   <div class="card mt-2">
@@ -2894,22 +3165,35 @@ function renderMiPerfil() {
 
 // --- MIS MATERIAS (Profesor) ---
 function renderMisMaterias() {
-  const misMaterias = DB.materias.filter(m=>currentUser.materias?.includes(m.id));
-  return `
-  <div class="grid-3">
-    ${misMaterias.map(m=>`
+  setTimeout(() => cargarMisMaterias(), 50);
+  return `<div id="mis-materias-content"><div style="text-align:center;padding:40px;color:var(--text3)">Cargando materias...</div></div>`;
+}
+
+async function cargarMisMaterias() {
+  const el = document.getElementById('mis-materias-content');
+  if (!el) return;
+  try {
+    const mats = await API.getMaterias();
+    DB.materias = mats;
+    if (mats.length === 0) {
+      el.innerHTML = `<div class="card" style="text-align:center;padding:40px">
+        <div style="font-size:13px;color:var(--text3)">Sin materias registradas aún.</div>
+      </div>`; return;
+    }
+    el.innerHTML = `<div class="grid-3">${mats.map(m=>`
       <div class="card" style="cursor:pointer" onclick="mostrarNotatMateria(${m.id}); navigate('notas')">
         <div style="font-size:11px;color:var(--text3);margin-bottom:8px">${m.codigo}</div>
         <div style="font-size:15px;font-weight:500;color:var(--text);margin-bottom:6px">${m.nombre}</div>
         <div class="text-sm text-muted">Semestre ${m.semestre}° · ${m.creditos} créditos</div>
         <div class="sep"></div>
         <div style="display:flex;justify-content:space-between">
-          <span class="text-sm text-muted">${DB.notas.filter(n=>n.materia_id===m.id).length} estudiantes</span>
+          <span class="text-sm text-muted">${m.profesor?.nombre||'Sin profesor'}</span>
           <span class="text-sm text-gold">Ver notas →</span>
         </div>
-      </div>
-    `).join('')}
-  </div>`;
+      </div>`).join('')}</div>`;
+  } catch(e) {
+    if (el) el.innerHTML = `<div class="card" style="color:var(--red);padding:16px">Error al cargar materias.</div>`;
+  }
 }
 
 // --- PROFESORES ---
