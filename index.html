@@ -5,6 +5,219 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Portal Estudiantil — Instituto Bíblico MUC</title>
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+// ============================================
+// SUPABASE CONFIG
+// ============================================
+const SUPABASE_URL  = 'https://duorrhnzaatuhdkrkzen.supabase.co';
+const SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImR1b3JyaG56YWF0dWhka3JremVuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQyOTc1NzksImV4cCI6MjA4OTg3MzU3OX0.FTBLtPpfujfnSIllEYISD2hzPUIynco8Q1A25EkpG_w';
+const SB = supabase.createClient(SUPABASE_URL, SUPABASE_ANON);
+
+// ============================================
+// API — todas las operaciones contra Supabase
+// ============================================
+const API = {
+
+  // AUTH
+  async login(rut, password) {
+    const { data, error } = await SB
+      .from('usuarios')
+      .select('*')
+      .eq('rut', rut)
+      .eq('password_hash', password)
+      .eq('activo', true)
+      .single();
+    if (error || !data) return null;
+    // Actualizar último acceso
+    await SB.from('usuarios').update({ ultimo_acceso: new Date().toISOString() }).eq('id', data.id);
+    return data;
+  },
+
+  async cambiarPassword(id, passwordNueva) {
+    const { error } = await SB
+      .from('usuarios')
+      .update({ password_hash: passwordNueva, debe_cambiar_password: false })
+      .eq('id', id);
+    return !error;
+  },
+
+  // MATERIAS
+  async getMaterias() {
+    const { data } = await SB.from('materias').select('*, profesor:profesor_id(id, nombre)').eq('activa', true).order('semestre');
+    return data || [];
+  },
+
+  async crearMateria(materia) {
+    const { data, error } = await SB.from('materias').insert(materia).select().single();
+    if (error) throw error;
+    return data;
+  },
+
+  async editarMateria(id, cambios) {
+    const { error } = await SB.from('materias').update(cambios).eq('id', id);
+    return !error;
+  },
+
+  async eliminarMateria(id) {
+    const { error } = await SB.from('materias').update({ activa: false }).eq('id', id);
+    return !error;
+  },
+
+  // ESTUDIANTES
+  async getEstudiantes() {
+    const { data } = await SB.from('estudiantes').select('*, usuario:id(nombre, email, rut)').order('creado_en', { ascending: false });
+    return data || [];
+  },
+
+  async getEstudiante(id) {
+    const { data } = await SB.from('estudiantes').select('*, usuario:id(nombre, email, rut)').eq('id', id).single();
+    return data;
+  },
+
+  async crearEstudiante(usuario, estudiante) {
+    // Primero crea el usuario
+    const { data: u, error: eu } = await SB.from('usuarios').insert(usuario).select().single();
+    if (eu) throw eu;
+    // Luego crea la ficha de estudiante
+    const { data: e, error: ee } = await SB.from('estudiantes').insert({ ...estudiante, id: u.id }).select().single();
+    if (ee) throw ee;
+    return { usuario: u, estudiante: e };
+  },
+
+  async editarEstudiante(id, cambios) {
+    const { error } = await SB.from('estudiantes').update(cambios).eq('id', id);
+    return !error;
+  },
+
+  // PROFESORES
+  async getProfesores() {
+    const { data } = await SB.from('profesores').select('*, usuario:id(nombre, email, rut, iniciales)').order('creado_en', { ascending: false });
+    return data || [];
+  },
+
+  async crearProfesor(usuario, profesor) {
+    const { data: u, error: eu } = await SB.from('usuarios').insert(usuario).select().single();
+    if (eu) throw eu;
+    const { data: p, error: ep } = await SB.from('profesores').insert({ ...profesor, id: u.id }).select().single();
+    if (ep) throw ep;
+    return { usuario: u, profesor: p };
+  },
+
+  // NOTAS
+  async getNotasEstudiante(estudianteId) {
+    const { data } = await SB.from('notas').select('*, materia:materia_id(nombre, codigo)').eq('estudiante_id', estudianteId);
+    return data || [];
+  },
+
+  async getNotasMateria(materiaId) {
+    const { data } = await SB.from('notas').select('*, estudiante:estudiante_id(id, usuario:id(nombre, rut))').eq('materia_id', materiaId);
+    return data || [];
+  },
+
+  async guardarNota(nota) {
+    const { error } = await SB.from('notas').upsert(nota, { onConflict: 'estudiante_id,materia_id,anio' });
+    return !error;
+  },
+
+  // HORARIO
+  async getHorario() {
+    const { data } = await SB.from('horario').select('*, materia:materia_id(nombre, codigo)').order('dia').order('hora');
+    return data || [];
+  },
+
+  async guardarHorario(horario) {
+    const { error } = await SB.from('horario').upsert(horario);
+    return !error;
+  },
+
+  // MATERIAL
+  async getMaterial(materiaId = null) {
+    let q = SB.from('material').select('*, materia:materia_id(nombre)').order('creado_en', { ascending: false });
+    if (materiaId) q = q.eq('materia_id', materiaId);
+    const { data } = await q;
+    return data || [];
+  },
+
+  async subirMaterial(material) {
+    const { data, error } = await SB.from('material').insert(material).select().single();
+    if (error) throw error;
+    return data;
+  },
+
+  async eliminarMaterial(id) {
+    const { error } = await SB.from('material').delete().eq('id', id);
+    return !error;
+  },
+
+  // SOLICITUDES
+  async getSolicitudes(estudianteId = null) {
+    let q = SB.from('solicitudes').select('*, estudiante:estudiante_id(id, usuario:id(nombre, rut))').order('fecha', { ascending: false });
+    if (estudianteId) q = q.eq('estudiante_id', estudianteId);
+    const { data } = await q;
+    return data || [];
+  },
+
+  async crearSolicitud(solicitud) {
+    const { data, error } = await SB.from('solicitudes').insert(solicitud).select().single();
+    if (error) throw error;
+    return data;
+  },
+
+  async actualizarSolicitud(id, cambios) {
+    const { error } = await SB.from('solicitudes').update({ ...cambios, actualizado_en: new Date().toISOString() }).eq('id', id);
+    return !error;
+  },
+
+  // FORO
+  async getTemasForо(materiaId = null) {
+    let q = SB.from('foro_temas').select('*, respuestas:foro_respuestas(count)').order('creado_en', { ascending: false });
+    if (materiaId) q = q.eq('materia_id', materiaId);
+    const { data } = await q;
+    return data || [];
+  },
+
+  async crearTema(tema) {
+    const { data, error } = await SB.from('foro_temas').insert(tema).select().single();
+    if (error) throw error;
+    return data;
+  },
+
+  async getRespuestas(temaId) {
+    const { data } = await SB.from('foro_respuestas').select('*').eq('tema_id', temaId).order('creado_en');
+    return data || [];
+  },
+
+  async crearRespuesta(respuesta) {
+    const { data, error } = await SB.from('foro_respuestas').insert(respuesta).select().single();
+    if (error) throw error;
+    return data;
+  },
+
+  // ADMISIONES
+  async getAdmisiones() {
+    const { data } = await SB.from('admisiones').select('*').order('creado_en', { ascending: false });
+    return data || [];
+  },
+
+  async crearAdmision(admision) {
+    const { data, error } = await SB.from('admisiones').insert(admision).select().single();
+    if (error) throw error;
+    return data;
+  },
+
+  async actualizarAdmision(id, cambios) {
+    const { error } = await SB.from('admisiones').update(cambios).eq('id', id);
+    return !error;
+  },
+
+  // PLANES
+  async getPlanes() {
+    const { data } = await SB.from('planes').select('*').order('id');
+    return data || [];
+  },
+};
+</script>
 <style>
 /* ============================================
    VARIABLES & RESET
@@ -888,33 +1101,24 @@ const DB = {
 };
 
 // ============================================
-// AUTH SYSTEM — Email + Password + Roles
+// AUTH SYSTEM — Supabase
 // ============================================
-
-// Credenciales de usuarios del sistema
-// En la versión con Supabase, esto vendrá de la base de datos
-// Función para extraer el RUT base (solo números, sin puntos ni dígito verificador)
 function limpiarRut(rut) {
-  // Quitar puntos, espacios, guión y el último carácter (dígito verificador)
-  const soloNumYK = rut.replace(/\./g,'').replace(/\s/g,'');
-  // Si tiene guión, sacar todo antes del guión
-  if (soloNumYK.includes('-')) return soloNumYK.split('-')[0];
-  // Si no tiene guión pero el usuario igual ingresó el dígito al final, lo dejamos tal cual
-  return soloNumYK;
+  const soloNum = rut.replace(/\./g,'').replace(/\s/g,'');
+  if (soloNum.includes('-')) return soloNum.split('-')[0];
+  return soloNum;
 }
 
-// Formatear mientras escribe (solo permite números)
 function formatearRutInput(input) {
   input.value = input.value.replace(/[^0-9]/g, '');
 }
 
-// Credenciales — el campo "rut" es el RUT BASE sin puntos, sin guión, sin dígito verificador
+// Solo el admin local como respaldo mientras Supabase carga
 const USUARIOS_AUTH = [
   {
-    id: 1, rut: '20527658', password: 'IBC_Muc#2025*Adm',
+    id: 'admin-local', rut: '20527658', password: 'IBC_Muc#2025*Adm',
     rol: 'admin', nombre: 'Administrador', iniciales: 'AD',
-    email: 'admin@ibcmuc.cl',
-    debe_cambiar_password: false,
+    email: 'admin@ibcmuc.cl', debe_cambiar_password: false,
   },
 ];
 
@@ -960,34 +1164,31 @@ function mostrarApp() {
 }
 
 function intentarLogin() {
-  // Verificar bloqueo
   if (bloqueadoHasta && Date.now() < bloqueadoHasta) {
-    const segsRestantes = Math.ceil((bloqueadoHasta - Date.now()) / 1000);
-    mostrarErrorLogin(`Demasiados intentos fallidos. Espera ${segsRestantes} segundos.`);
+    const segs = Math.ceil((bloqueadoHasta - Date.now()) / 1000);
+    mostrarErrorLogin(`Demasiados intentos. Espera ${segs} segundos.`);
     return;
   }
 
   const rutIngresado = limpiarRut(document.getElementById('login-rut').value.trim());
   const pass = document.getElementById('login-pass').value;
 
-  if (!rutIngresado || !pass) {
-    mostrarErrorLogin('Ingresa tu RUT y contraseña.');
-    return;
-  }
-
+  if (!rutIngresado || !pass) { mostrarErrorLogin('Ingresa tu RUT y contraseña.'); return; }
   if (!/^\d{7,9}$/.test(rutIngresado)) {
     mostrarErrorLogin('El RUT debe tener entre 7 y 9 números, sin puntos ni dígito verificador.');
     return;
   }
 
-  // Animación de carga
   const btn = document.getElementById('btn-ingresar');
   btn.innerHTML = '<span class="spinner"></span>';
   btn.disabled = true;
 
-  // Simular latencia de red (en producción con Supabase será llamada real a la API)
-  setTimeout(() => {
-    const usuario = USUARIOS_AUTH.find(u => u.rut === rutIngresado && u.password === pass);
+  // Intentar login contra Supabase primero
+  API.login(rutIngresado, pass).then(usuario => {
+    if (!usuario) {
+      // Fallback al admin local (por si Supabase no tiene el usuario aún)
+      usuario = USUARIOS_AUTH.find(u => u.rut === rutIngresado && u.password === pass) || null;
+    }
 
     if (usuario) {
       intentosFallidos = 0;
@@ -996,6 +1197,7 @@ function intentarLogin() {
 
       currentUser = { ...usuario };
       delete currentUser.password;
+      delete currentUser.password_hash;
 
       try {
         localStorage.setItem('ibc_sesion', JSON.stringify({
@@ -1004,7 +1206,6 @@ function intentarLogin() {
         }));
       } catch(e) {}
 
-      // Si es primer ingreso, forzar cambio de contraseña
       if (usuario.debe_cambiar_password) {
         mostrarCambioObligatorio();
       } else {
@@ -1016,21 +1217,32 @@ function intentarLogin() {
       btn.disabled = false;
 
       if (intentosFallidos >= 5) {
-        bloqueadoHasta = Date.now() + (30 * 1000);
+        bloqueadoHasta = Date.now() + 30000;
         mostrarErrorLogin('Demasiados intentos. Acceso bloqueado por 30 segundos.');
-        const intervalo = setInterval(() => {
+        const iv = setInterval(() => {
           if (Date.now() >= bloqueadoHasta) {
-            clearInterval(intervalo);
-            intentosFallidos = 0;
+            clearInterval(iv); intentosFallidos = 0;
             document.getElementById('login-error').style.display = 'none';
           }
         }, 1000);
       } else {
-        const restantes = 5 - intentosFallidos;
-        mostrarErrorLogin(`RUT o contraseña incorrectos. ${restantes} intento${restantes!==1?'s':''} restante${restantes!==1?'s':''}.`);
+        const r = 5 - intentosFallidos;
+        mostrarErrorLogin(`RUT o contraseña incorrectos. ${r} intento${r!==1?'s':''} restante${r!==1?'s':''}.`);
       }
     }
-  }, 600);
+  }).catch(() => {
+    // Si Supabase falla, usar solo el admin local
+    const usuario = USUARIOS_AUTH.find(u => u.rut === rutIngresado && u.password === pass);
+    btn.innerHTML = 'Ingresar al portal';
+    btn.disabled = false;
+    if (usuario) {
+      currentUser = { ...usuario };
+      delete currentUser.password;
+      mostrarApp();
+    } else {
+      mostrarErrorLogin('Error de conexión. Verifica tu internet e intenta de nuevo.');
+    }
+  });
 }
 
 function mostrarErrorLogin(msg) {
@@ -1092,21 +1304,17 @@ function confirmarCambioObligatorio() {
     errEl.style.display = 'block'; return;
   }
 
-  // Guardar nueva contraseña y marcar que ya no necesita cambiar
-  const usuarioAuth = USUARIOS_AUTH.find(u => u.id === currentUser.id);
-  if (usuarioAuth) {
-    usuarioAuth.password = nueva;
-    usuarioAuth.debe_cambiar_password = false;
-  }
+  API.cambiarPassword(currentUser.id, nueva).then(() => {
+    const local = USUARIOS_AUTH.find(u => u.id === currentUser.id);
+    if (local) { local.password = nueva; local.debe_cambiar_password = false; }
 
-  // Cerrar overlay y entrar al portal
-  document.getElementById('login-cambio-obligatorio').style.display = 'none';
-  document.getElementById('ob-nueva').value = '';
-  document.getElementById('ob-confirmar').value = '';
-  errEl.style.display = 'none';
-
-  showToast('¡Contraseña creada! Bienvenido/a al portal ✦');
-  mostrarApp();
+    document.getElementById('login-cambio-obligatorio').style.display = 'none';
+    document.getElementById('ob-nueva').value = '';
+    document.getElementById('ob-confirmar').value = '';
+    errEl.style.display = 'none';
+    showToast('¡Contraseña creada! Bienvenido/a al portal ✦');
+    mostrarApp();
+  });
 }
 
 function mostrarRecuperar() {
@@ -1880,153 +2088,234 @@ function guardarEdicionFicha(id) {
   mostrarFicha(id);
 }
 
-// --- ESTUDIANTES (Admin/Profesor — lista rápida con edición) ---
+// --- ESTUDIANTES ---
 function renderEstudiantes() {
+  setTimeout(() => cargarEstudiantes('todos'), 50);
   return `
   <div class="flex-between mb-2" style="flex-wrap:wrap;gap:10px">
     <div class="tab-bar" style="flex:0;min-width:300px">
-      <div class="tab-item active" onclick="filterEst('todos',this)">Todos (${DB.estudiantes.length})</div>
-      <div class="tab-item" onclick="filterEst('activos',this)">Activos</div>
-      <div class="tab-item" onclick="filterEst('egresados',this)">Egresados</div>
+      <div class="tab-item active" onclick="cargarEstudiantes('todos');marcarTab(this)">Todos</div>
+      <div class="tab-item" onclick="cargarEstudiantes('activos');marcarTab(this)">Activos</div>
+      <div class="tab-item" onclick="cargarEstudiantes('egresados');marcarTab(this)">Egresados</div>
     </div>
     ${currentUser.rol==='admin' ? `<button class="btn btn-gold" onclick="openModalNuevoEst()">+ Nuevo estudiante</button>` : ''}
   </div>
-  <div class="table-wrap">
-    <table id="tabla-estudiantes">
-      <thead><tr><th>Estudiante</th><th>RUT</th><th>Carrera</th><th>Semestre</th><th>Estado académico</th><th>Acciones</th></tr></thead>
-      <tbody>${renderFilaEstudiantes(DB.estudiantes)}</tbody>
-    </table>
-  </div>`;
+  <div id="estudiantes-tabla"><div style="text-align:center;padding:40px;color:var(--text3)">Conectando con la base de datos...</div></div>`;
 }
 
-function renderFilaEstudiantes(lista) {
-  return lista.map(e => {
-    const ea = DB.estadosAcademicos.find(x=>x.valor===e.estadoAcademico)||{color:'b-gray'};
-    return `<tr>
-      <td>
-        <div class="flex-center">
-          <div class="user-avatar dot-est" style="width:30px;height:30px;font-size:11px">${e.iniciales}</div>
-          <strong>${e.nombre} ${e.apellido2||''}</strong>
-        </div>
-      </td>
-      <td style="font-family:monospace;color:var(--text3);font-size:12px">${e.rut||'—'}</td>
-      <td>${e.carrera}</td>
-      <td>${e.semestre} Sem.</td>
-      <td><span class="badge ${ea.color}">${e.estadoAcademico||e.estado}</span></td>
-      <td style="display:flex;gap:6px">
-        <button class="btn btn-outline btn-sm" onclick="verEstudiante(${e.id})">Perfil</button>
-        ${currentUser.rol==='admin'?`<button class="btn btn-gold btn-sm" onclick="editarFichaEstudiante(${e.id})">Editar</button>`:''}
-      </td>
-    </tr>`;
-  }).join('');
-}
-
-function filterEst(tipo, el) {
-  document.querySelectorAll('.tab-item').forEach(t=>t.classList.remove('active'));
+function marcarTab(el) {
+  el.closest('.tab-bar').querySelectorAll('.tab-item').forEach(t=>t.classList.remove('active'));
   el.classList.add('active');
-  let lista = DB.estudiantes;
-  if (tipo==='activos') lista = lista.filter(e=>!e.estadoAcademico.includes('Egresad') && e.estadoAcademico!=='Renunciado' && e.estadoAcademico!=='Desertor');
-  if (tipo==='egresados') lista = lista.filter(e=>e.estadoAcademico==='Egresado');
-  document.querySelector('#tabla-estudiantes tbody').innerHTML = renderFilaEstudiantes(lista);
 }
 
-function verEstudiante(id) {
-  navigate('info_estudiantes');
-  setTimeout(()=>mostrarFicha(id), 50);
+async function cargarEstudiantes(filtro='todos') {
+  const el = document.getElementById('estudiantes-tabla');
+  if (!el) return;
+  try {
+    let lista = await API.getEstudiantes();
+    if (filtro==='activos') lista = lista.filter(e=>!['Egresado','Renunciado','Desertor'].includes(e.estado_academico));
+    if (filtro==='egresados') lista = lista.filter(e=>e.estado_academico==='Egresado');
+    DB.estudiantes = await API.getEstudiantes(); // mantener cache completo
+    if (lista.length === 0) {
+      el.innerHTML = `<div class="card" style="text-align:center;padding:40px">
+        <div style="font-size:32px;margin-bottom:12px">👨‍🎓</div>
+        <div style="font-size:15px;font-weight:500;color:var(--text);margin-bottom:6px">Sin estudiantes registrados</div>
+        <div style="font-size:13px;color:var(--text3)">Haz clic en "+ Nuevo estudiante" para agregar el primero.</div>
+      </div>`; return;
+    }
+    el.innerHTML = `<div class="table-wrap"><table>
+      <thead><tr><th>Estudiante</th><th>RUT</th><th>Carrera</th><th>Semestre</th><th>Estado académico</th><th>Acciones</th></tr></thead>
+      <tbody>${lista.map(e=>{
+        const ea = DB.estadosAcademicos.find(x=>x.valor===e.estado_academico)||{color:'b-gray'};
+        const nombre = e.usuario?.nombre||'Sin nombre';
+        const iniciales = nombre.split(' ').map(w=>w[0]).slice(0,2).join('').toUpperCase();
+        return `<tr>
+          <td><div class="flex-center"><div class="user-avatar dot-est" style="width:30px;height:30px;font-size:11px">${iniciales}</div><strong>${nombre}</strong></div></td>
+          <td style="font-family:monospace;color:var(--text3);font-size:12px">${e.rut||'—'}</td>
+          <td>${e.carrera||'—'}</td>
+          <td>${e.semestre||'—'} Sem.</td>
+          <td><span class="badge ${ea.color}">${e.estado_academico||'—'}</span></td>
+          <td style="display:flex;gap:6px">
+            <button class="btn btn-outline btn-sm" onclick="navigate('info_estudiantes');setTimeout(()=>mostrarFicha('${e.id}'),100)">Ver ficha</button>
+            ${currentUser.rol==='admin'?`<button class="btn btn-gold btn-sm" onclick="editarFichaEstudiante('${e.id}')">Editar</button>`:''}
+          </td>
+        </tr>`;
+      }).join('')}</tbody>
+    </table></div>`;
+  } catch(err) {
+    el.innerHTML = `<div class="card" style="color:var(--red);padding:16px">Error al cargar estudiantes.</div>`;
+  }
 }
 
 // --- ADMISIONES ---
 function renderAdmisiones() {
-  const pendientes = DB.admisiones.filter(a=>a.estado==='Pendiente' || a.estado==='En revisión');
-  const historico = DB.admisiones.filter(a=>a.estado==='Aceptada' || a.estado==='Rechazada');
+  setTimeout(() => cargarAdmisiones(), 50);
   return `
   <div class="flex-between mb-2">
-    <p class="text-muted text-sm">${pendientes.length} solicitud(es) requieren atención</p>
+    <p class="text-muted text-sm" id="adm-count">Cargando...</p>
     <button class="btn btn-gold" onclick="openModalFormAdmision()">+ Simular nueva solicitud</button>
   </div>
-  <div class="card mb-2">
-    <div class="card-title">Solicitudes pendientes</div>
-    ${pendientes.length ? pendientes.map(a => `
-      <div class="row-item">
-        <div style="flex:1">
-          <div style="font-size:13px;font-weight:500;color:var(--text)">${a.nombre}</div>
-          <div class="text-sm text-muted">${a.email} · ${a.telefono}</div>
-          <div class="text-sm text-muted">${a.semestre} · ${a.fecha}</div>
-          ${a.mensaje ? `<div class="text-sm" style="color:var(--text2);margin-top:4px;font-style:italic">"${a.mensaje}"</div>` : ''}
-        </div>
-        <div style="display:flex;gap:6px;flex-direction:column;align-items:flex-end;margin-left:16px">
-          <button class="btn btn-gold btn-sm" onclick="cambiarEstadoAdm(${a.id},'Aceptada')">Aceptar</button>
-          <button class="btn btn-danger btn-sm" onclick="cambiarEstadoAdm(${a.id},'Rechazada')">Rechazar</button>
-        </div>
-      </div>
-    `).join('') : '<p class="text-muted text-sm">No hay solicitudes pendientes.</p>'}
-  </div>
-  <div class="card">
-    <div class="card-title">Historial</div>
-    <div class="table-wrap" style="border:none">
-      <table>
-        <thead><tr><th>Nombre</th><th>Semestre</th><th>Fecha</th><th>Estado</th></tr></thead>
-        <tbody>
-          ${historico.map(a=>`<tr>
-            <td><strong>${a.nombre}</strong></td>
-            <td>${a.semestre}</td>
-            <td>${a.fecha}</td>
-            <td><span class="badge ${a.estado==='Aceptada'?'b-green':'b-red'}">${a.estado}</span></td>
-          </tr>`).join('')}
-        </tbody>
-      </table>
-    </div>
-  </div>`;
+  <div id="adm-content"><div style="text-align:center;padding:40px;color:var(--text3)">Conectando con la base de datos...</div></div>`;
 }
 
-function cambiarEstadoAdm(id, nuevoEstado) {
-  const adm = DB.admisiones.find(a=>a.id===id);
-  if (adm) adm.estado = nuevoEstado;
-  showToast(`Admisión ${nuevoEstado.toLowerCase()} correctamente ✦`);
-  navigate('admisiones');
+async function cargarAdmisiones() {
+  const el = document.getElementById('adm-content');
+  const ct = document.getElementById('adm-count');
+  if (!el) return;
+  try {
+    const lista = await API.getAdmisiones();
+    DB.admisiones = lista;
+    const pendientes = lista.filter(a=>['Pendiente','En revisión'].includes(a.estado));
+    const historico  = lista.filter(a=>['Aceptada','Rechazada'].includes(a.estado));
+    if (ct) ct.textContent = `${pendientes.length} solicitud${pendientes.length!==1?'es':''} requieren atención`;
+    el.innerHTML = `
+    <div class="card mb-2">
+      <div class="card-title">Solicitudes pendientes</div>
+      ${pendientes.length ? pendientes.map(a=>`
+        <div class="row-item">
+          <div style="flex:1">
+            <div style="font-size:13px;font-weight:500;color:var(--text)">${a.nombre} ${a.apellido2||''}</div>
+            <div class="text-sm text-muted">${a.email||''} · ${a.telefono||''}</div>
+            <div class="text-sm text-muted">${a.semestre_postula||''} · ${a.fecha||''}</div>
+            ${a.mensaje?`<div class="text-sm" style="color:var(--text2);margin-top:4px;font-style:italic">"${a.mensaje}"</div>`:''}
+          </div>
+          <div style="display:flex;gap:6px;flex-direction:column;align-items:flex-end;margin-left:16px">
+            <button class="btn btn-gold btn-sm" onclick="cambiarEstadoAdm(${a.id},'Aceptada')">Aceptar</button>
+            <button class="btn btn-danger btn-sm" onclick="cambiarEstadoAdm(${a.id},'Rechazada')">Rechazar</button>
+          </div>
+        </div>`).join('') : '<p class="text-muted text-sm">No hay solicitudes pendientes.</p>'}
+    </div>
+    ${historico.length ? `<div class="card">
+      <div class="card-title">Historial</div>
+      <div class="table-wrap" style="border:none"><table>
+        <thead><tr><th>Nombre</th><th>Semestre</th><th>Fecha</th><th>Estado</th></tr></thead>
+        <tbody>${historico.map(a=>`<tr>
+          <td><strong>${a.nombre} ${a.apellido2||''}</strong></td>
+          <td>${a.semestre_postula||'—'}</td>
+          <td>${a.fecha||'—'}</td>
+          <td><span class="badge ${a.estado==='Aceptada'?'b-green':'b-red'}">${a.estado}</span></td>
+        </tr>`).join('')}</tbody>
+      </table></div>
+    </div>` : ''}`;
+  } catch(e) {
+    if (el) el.innerHTML = `<div class="card" style="color:var(--red);padding:16px">Error al cargar admisiones.</div>`;
+  }
+}
+
+async function cambiarEstadoAdm(id, nuevoEstado) {
+  const ok = await API.actualizarAdmision(id, { estado: nuevoEstado });
+  if (ok) { showToast(`Admisión ${nuevoEstado.toLowerCase()} ✦`); cargarAdmisiones(); }
+  else showToast('Error al actualizar. Intenta de nuevo.');
 }
 
 // --- MATERIAS ---
 function renderMaterias() {
+  setTimeout(() => cargarMaterias(), 50);
   return `
   <div class="flex-between mb-2">
-    <p class="text-muted text-sm">${DB.materias.length} materias registradas</p>
+    <p class="text-muted text-sm" id="materias-count">Cargando...</p>
     ${currentUser.rol==='admin' ? `<button class="btn btn-gold" onclick="openModalNuevaMateria()">+ Nueva materia</button>` : ''}
   </div>
-  <div class="table-wrap">
-    <table>
+  <div id="materias-tabla"><div style="text-align:center;padding:40px;color:var(--text3)">Conectando con la base de datos...</div></div>`;
+}
+
+async function cargarMaterias() {
+  try {
+    const mats = await API.getMaterias();
+    DB.materias = mats;
+    const el = document.getElementById('materias-tabla');
+    const ct = document.getElementById('materias-count');
+    if (!el) return;
+    if (ct) ct.textContent = `${mats.length} materia${mats.length!==1?'s':''} registrada${mats.length!==1?'s':''}`;
+    if (mats.length === 0) {
+      el.innerHTML = `<div class="card" style="text-align:center;padding:40px">
+        <div style="font-size:32px;margin-bottom:12px">📚</div>
+        <div style="font-size:15px;font-weight:500;color:var(--text);margin-bottom:6px">Sin materias registradas</div>
+        <div style="font-size:13px;color:var(--text3)">Haz clic en "+ Nueva materia" para agregar la primera.</div>
+      </div>`; return;
+    }
+    el.innerHTML = `<div class="table-wrap"><table>
       <thead><tr><th>Código</th><th>Nombre</th><th>Profesor</th><th>Semestre</th><th>Créditos</th><th>Acciones</th></tr></thead>
-      <tbody>
-        ${DB.materias.map(m=>`<tr>
-          <td><span class="badge b-gray">${m.codigo}</span></td>
-          <td><strong>${m.nombre}</strong></td>
-          <td>${m.profesor}</td>
-          <td>${m.semestre}°</td>
-          <td>${m.creditos}</td>
-          <td>
-            <button class="btn btn-outline btn-sm" onclick="verMateriaDetalle(${m.id})">Detalle</button>
-          </td>
-        </tr>`).join('')}
-      </tbody>
-    </table>
-  </div>`;
+      <tbody>${mats.map(m=>`<tr>
+        <td><span class="badge b-gray">${m.codigo}</span></td>
+        <td><strong>${m.nombre}</strong></td>
+        <td>${m.profesor?.nombre||'Sin asignar'}</td>
+        <td>${m.semestre}°</td>
+        <td>${m.creditos}</td>
+        <td style="display:flex;gap:6px">
+          <button class="btn btn-outline btn-sm" onclick="verMateriaDetalle(${m.id})">Detalle</button>
+          ${currentUser.rol==='admin'?`<button class="btn btn-gold btn-sm" onclick="abrirEditarMateria(${m.id})">Editar</button>`:''}
+        </td>
+      </tr>`).join('')}</tbody>
+    </table></div>`;
+  } catch(e) {
+    const el = document.getElementById('materias-tabla');
+    if (el) el.innerHTML = `<div class="card" style="color:var(--red);padding:16px">Error al cargar materias. Verifica tu conexión a internet.</div>`;
+  }
 }
 
 function verMateriaDetalle(id) {
   const mat = DB.materias.find(m=>m.id===id);
-  const mats = DB.material.filter(m=>m.materia_id===id);
-  const estMat = DB.notas.filter(n=>n.materia_id===id);
+  if (!mat) return;
   showModal(`<div class="modal-title"><span>${mat.nombre}</span><button class="modal-close" onclick="closeModal()">✕</button></div>
     <div class="grid-2" style="gap:12px;margin-bottom:16px">
-      <div class="card-sec" style="background:var(--bg3);border-radius:8px;padding:12px"><div class="text-sm text-muted">Código</div><div style="color:var(--text);font-weight:500">${mat.codigo}</div></div>
-      <div class="card-sec" style="background:var(--bg3);border-radius:8px;padding:12px"><div class="text-sm text-muted">Créditos</div><div style="color:var(--text);font-weight:500">${mat.creditos}</div></div>
+      <div style="background:var(--bg3);border-radius:8px;padding:12px"><div class="text-sm text-muted">Código</div><div style="color:var(--text);font-weight:500">${mat.codigo}</div></div>
+      <div style="background:var(--bg3);border-radius:8px;padding:12px"><div class="text-sm text-muted">Créditos</div><div style="color:var(--text);font-weight:500">${mat.creditos}</div></div>
     </div>
-    <div style="margin-bottom:14px"><div class="card-title">Profesor</div><p style="color:var(--text)">${mat.profesor}</p></div>
-    <div class="card-title">Material disponible (${mats.length})</div>
-    ${mats.length ? mats.map(m=>`<div class="material-item"><div class="material-title">${m.titulo}</div><span class="badge b-blue">${m.tipo}</span></div>`).join('') : '<p class="text-muted text-sm">Sin material cargado.</p>'}
-    <div class="card-title mt-2">Estudiantes con notas registradas (${estMat.length})</div>
-    <p class="text-sm text-muted">${estMat.length} estudiante(s) tienen notas en esta materia.</p>
+    <div class="row-item"><span class="text-muted">Profesor</span><span style="color:var(--text)">${mat.profesor?.nombre||'Sin asignar'}</span></div>
+    <div class="row-item"><span class="text-muted">Semestre</span><span style="color:var(--text)">${mat.semestre}°</span></div>
+    <div class="row-item"><span class="text-muted">Activa</span><span class="badge ${mat.activa?'b-green':'b-red'}">${mat.activa?'Sí':'No'}</span></div>
   `);
+}
+
+async function abrirEditarMateria(id) {
+  const mat = DB.materias.find(m=>m.id===id);
+  if (!mat) return;
+  const profs = await API.getProfesores().catch(()=>[]);
+  showModal(`<div class="modal-title"><span>Editar materia</span><button class="modal-close" onclick="closeModal()">✕</button></div>
+    <div class="grid-2">
+      <div class="form-group"><label class="form-label">Nombre</label><input class="form-control" id="em-nombre" value="${mat.nombre}"></div>
+      <div class="form-group"><label class="form-label">Código</label><input class="form-control" id="em-codigo" value="${mat.codigo}"></div>
+    </div>
+    <div class="grid-2">
+      <div class="form-group"><label class="form-label">Semestre</label>
+        <select class="form-control" id="em-sem">
+          ${[1,2,3,4,5,6].map(s=>`<option value="${s}" ${s===mat.semestre?'selected':''}>${s}°</option>`).join('')}
+        </select>
+      </div>
+      <div class="form-group"><label class="form-label">Créditos</label><input class="form-control" type="number" id="em-cred" value="${mat.creditos}" min="1" max="8"></div>
+    </div>
+    <div class="form-group"><label class="form-label">Profesor</label>
+      <select class="form-control" id="em-prof">
+        <option value="">— Sin asignar —</option>
+        ${profs.map(p=>`<option value="${p.id}" ${p.id===mat.profesor_id?'selected':''}>${p.usuario?.nombre||'Profesor'}</option>`).join('')}
+      </select>
+    </div>
+    <div style="display:flex;gap:8px">
+      <button class="btn btn-gold" onclick="guardarEdicionMateria(${id})">Guardar cambios</button>
+      <button class="btn btn-danger" onclick="desactivarMateria(${id})">Desactivar</button>
+      <button class="btn btn-outline" onclick="closeModal()">Cancelar</button>
+    </div>
+  `);
+}
+
+async function guardarEdicionMateria(id) {
+  const cambios = {
+    nombre: document.getElementById('em-nombre').value.trim(),
+    codigo: document.getElementById('em-codigo').value.trim(),
+    semestre: parseInt(document.getElementById('em-sem').value),
+    creditos: parseInt(document.getElementById('em-cred').value),
+    profesor_id: document.getElementById('em-prof').value || null,
+  };
+  const ok = await API.editarMateria(id, cambios);
+  if (ok) { closeModal(); showToast('Materia actualizada ✦'); navigate('materias'); }
+  else showToast('Error al guardar. Intenta de nuevo.');
+}
+
+async function desactivarMateria(id) {
+  if (!confirm('¿Desactivar esta materia? No aparecerá en el portal.')) return;
+  const ok = await API.eliminarMateria(id);
+  if (ok) { closeModal(); showToast('Materia desactivada'); navigate('materias'); }
 }
 
 // --- HORARIO ---
@@ -2165,8 +2454,25 @@ function actualizarNota(input) {
   }
 }
 
-function guardarNotas(matId) {
-  showToast('Notas guardadas correctamente ✦');
+async function guardarNotas(matId) {
+  // Recoger todos los inputs de notas de la tabla
+  const inputs = document.querySelectorAll(`input[data-mat="${matId}"]`);
+  const notasPorEst = {};
+  inputs.forEach(inp => {
+    const estId = inp.dataset.est;
+    const campo = inp.dataset.campo;
+    const val = parseFloat(inp.value);
+    if (!notasPorEst[estId]) notasPorEst[estId] = { estudiante_id: estId, materia_id: matId, anio: new Date().getFullYear() };
+    notasPorEst[estId][campo] = isNaN(val) ? null : Math.min(10, Math.max(0, val));
+  });
+  try {
+    for (const nota of Object.values(notasPorEst)) {
+      await API.guardarNota(nota);
+    }
+    showToast('Notas guardadas correctamente ✦');
+  } catch(e) {
+    showToast('Error al guardar notas. Intenta de nuevo.');
+  }
 }
 
 // --- NOTAS ADMIN ---
@@ -2302,48 +2608,104 @@ function renderMaterial() {
   </div>`;
 }
 
-function subirMaterial() {
+async function subirMaterial() {
   const titulo = document.getElementById('mat-titulo').value.trim();
-  const tipo = document.getElementById('mat-tipo').value;
-  const link = document.getElementById('mat-link').value.trim();
-  const matId = parseInt(document.getElementById('mat-materia').value);
-  
+  const tipo   = document.getElementById('mat-tipo').value;
+  const link   = document.getElementById('mat-link').value.trim();
+  const matId  = parseInt(document.getElementById('mat-materia').value);
   if (!titulo) { showToast('Por favor ingresa un título'); return; }
-  
-  const hoy = new Date().toISOString().split('T')[0];
-  DB.material.unshift({ id: Date.now(), materia_id: matId, titulo, tipo, link: link||'#', fecha: hoy });
-  showToast('Material publicado correctamente ✦');
-  navigate('material');
+  try {
+    await API.subirMaterial({
+      materia_id: matId, titulo, tipo,
+      link: link||'', fecha: new Date().toISOString().split('T')[0],
+      profesor_id: currentUser.id||null,
+    });
+    showToast('Material publicado correctamente ✦');
+    navigate('material');
+  } catch(e) { showToast('Error al publicar material.'); }
 }
 
 // --- FORO ---
 function renderForo() {
+  setTimeout(() => cargarForo(), 50);
   return `
   <div class="flex-between mb-2">
-    <p class="text-muted text-sm">${DB.foro.length} temas activos</p>
+    <p class="text-muted text-sm" id="foro-count">Cargando...</p>
     <button class="btn btn-gold" onclick="openModalNuevoTema()">+ Nuevo tema</button>
   </div>
-  ${DB.foro.map(post => `
-    <div class="foro-post" id="foro-${post.id}" onclick="toggleForo(${post.id})">
-      <div class="flex-between">
-        <div style="flex:1">
-          <div style="font-size:14px;font-weight:500;color:var(--text)">${post.titulo}</div>
-          <div class="text-sm text-muted mt-1">
-            ${DB.materias.find(m=>m.id===post.materia_id)?.nombre||'General'} · 
-            ${post.autor} · ${post.fecha}
+  <div id="foro-lista"><div style="text-align:center;padding:40px;color:var(--text3)">Conectando...</div></div>`;
+}
+
+async function cargarForo() {
+  const el = document.getElementById('foro-lista');
+  const ct = document.getElementById('foro-count');
+  if (!el) return;
+  try {
+    const temas = await API.getTemasForо();
+    DB.foro = temas;
+    if (ct) ct.textContent = `${temas.length} tema${temas.length!==1?'s':''} activo${temas.length!==1?'s':''}`;
+    if (temas.length === 0) {
+      el.innerHTML = `<div class="card" style="text-align:center;padding:40px">
+        <div style="font-size:32px;margin-bottom:12px">💬</div>
+        <div style="font-size:15px;font-weight:500;color:var(--text)">El foro está vacío</div>
+        <div style="font-size:13px;color:var(--text3);margin-top:4px">Sé el primero en publicar un tema.</div>
+      </div>`; return;
+    }
+    el.innerHTML = temas.map(post => {
+      const respCount = post.respuestas?.[0]?.count || 0;
+      return `<div class="foro-post" id="foro-${post.id}" onclick="toggleForo(${post.id})">
+        <div class="flex-between">
+          <div style="flex:1">
+            <div style="font-size:14px;font-weight:500;color:var(--text)">${post.titulo}</div>
+            <div class="text-sm text-muted mt-1">${post.autor_nombre||'—'} · ${post.fecha||''}</div>
+          </div>
+          <span class="badge b-gold">${respCount} resp.</span>
+        </div>
+        <div id="foro-body-${post.id}" style="display:none;margin-top:12px;padding-top:12px;border-top:1px solid var(--border)">
+          <p style="font-size:13px;color:var(--text2);line-height:1.6">${post.contenido||''}</p>
+          <div class="mt-2" style="display:flex;gap:8px">
+            <input type="text" class="form-control" style="flex:1" placeholder="Escribe una respuesta..." id="resp-${post.id}">
+            <button class="btn btn-gold btn-sm" onclick="event.stopPropagation();responderTema(${post.id})">Responder</button>
           </div>
         </div>
-        <span class="badge b-gold">${post.respuestas} resp.</span>
-      </div>
-      <div id="foro-body-${post.id}" style="display:none;margin-top:12px;padding-top:12px;border-top:1px solid var(--border)">
-        <p style="font-size:13px;color:var(--text2);line-height:1.6">${post.contenido}</p>
-        <div class="mt-2" style="display:flex;gap:8px">
-          <input type="text" class="form-control" style="flex:1" placeholder="Escribe una respuesta...">
-          <button class="btn btn-gold btn-sm" onclick="event.stopPropagation();showToast('Respuesta enviada ✦')">Responder</button>
-        </div>
-      </div>
+      </div>`;
+    }).join('');
+  } catch(e) {
+    if (el) el.innerHTML = `<div class="card" style="color:var(--red);padding:16px">Error al cargar el foro.</div>`;
+  }
+}
+
+async function responderTema(temaId) {
+  const contenido = document.getElementById(`resp-${temaId}`)?.value?.trim();
+  if (!contenido) return;
+  try {
+    await API.crearRespuesta({
+      tema_id: temaId, autor_id: currentUser.id,
+      autor_nombre: currentUser.nombre, contenido,
+    });
+    showToast('Respuesta enviada ✦');
+    cargarForo();
+  } catch(e) { showToast('Error al enviar respuesta.'); }
+}
+
+async function openModalNuevoTema() {
+  const mats = await API.getMaterias().catch(()=>[]);
+  showModal(`<div class="modal-title"><span>Nuevo tema en el foro</span><button class="modal-close" onclick="closeModal()">✕</button></div>
+    <div class="form-group"><label class="form-label">Materia</label>
+      <select class="form-control" id="foro-mat">
+        <option value="">— General —</option>
+        ${mats.map(m=>`<option value="${m.id}">${m.nombre}</option>`).join('')}
+      </select>
     </div>
-  `).join('')}`;
+    <div class="form-group"><label class="form-label">Título del tema</label>
+      <input class="form-control" id="foro-titulo" placeholder="¿Sobre qué quieres debatir?">
+    </div>
+    <div class="form-group"><label class="form-label">Contenido</label>
+      <textarea class="form-control" id="foro-contenido" placeholder="Desarrolla tu pregunta o tema..."></textarea>
+    </div>
+    <button class="btn btn-gold" onclick="publicarTema()">Publicar tema</button>
+  `);
+}
 }
 
 function toggleForo(id) {
@@ -2356,64 +2718,91 @@ function toggleForo(id) {
 
 // --- SOLICITUDES ADMIN ---
 function renderSolicitudesAdmin() {
-  return `
-  <div class="card">
-    <div class="card-title">Todas las solicitudes estudiantiles</div>
-    <div class="table-wrap" style="border:none">
-      <table>
+  setTimeout(() => cargarSolicitudesAdmin(), 50);
+  return `<div id="solic-admin-content"><div style="text-align:center;padding:40px;color:var(--text3)">Cargando solicitudes...</div></div>`;
+}
+
+async function cargarSolicitudesAdmin() {
+  const el = document.getElementById('solic-admin-content');
+  if (!el) return;
+  try {
+    const lista = await API.getSolicitudes();
+    DB.solicitudes = lista;
+    if (lista.length === 0) {
+      el.innerHTML = `<div class="card" style="text-align:center;padding:40px">
+        <div style="font-size:13px;color:var(--text3)">No hay solicitudes registradas.</div>
+      </div>`; return;
+    }
+    el.innerHTML = `<div class="card">
+      <div class="card-title">Todas las solicitudes estudiantiles</div>
+      <div class="table-wrap" style="border:none"><table>
         <thead><tr><th>Tipo</th><th>Estudiante</th><th>Fecha</th><th>Estado</th><th>Acciones</th></tr></thead>
-        <tbody id="tabla-solicitudes">
-          ${renderFilasSolicitudes(DB.solicitudes)}
-        </tbody>
-      </table>
-    </div>
-  </div>`;
+        <tbody>${lista.map(s=>{
+          const cls = s.estado==='Aprobada'?'b-green':s.estado==='Rechazada'?'b-red':s.estado==='En proceso'?'b-gold':'b-blue';
+          const nombre = s.estudiante?.usuario?.nombre || `ID ${s.estudiante_id}`;
+          return `<tr>
+            <td><strong>${s.tipo}</strong></td>
+            <td>${nombre}</td>
+            <td>${s.fecha||'—'}</td>
+            <td><span class="badge ${cls}">${s.estado}</span></td>
+            <td style="display:flex;gap:6px">
+              ${s.estado!=='Aprobada'?`<button class="btn btn-gold btn-sm" onclick="cambiarEstadoSolicDB(${s.id},'Aprobada')">Aprobar</button>`:''}
+              ${s.estado!=='Rechazada'?`<button class="btn btn-danger btn-sm" onclick="cambiarEstadoSolicDB(${s.id},'Rechazada')">Rechazar</button>`:''}
+            </td>
+          </tr>`;
+        }).join('')}</tbody>
+      </table></div>
+    </div>`;
+  } catch(e) {
+    if (el) el.innerHTML = `<div class="card" style="color:var(--red);padding:16px">Error al cargar solicitudes.</div>`;
+  }
 }
 
-function renderFilasSolicitudes(lista) {
-  return lista.map(s=>{
-    const cls = s.estado==='Aprobada'?'b-green':s.estado==='Rechazada'?'b-red':s.estado==='En proceso'?'b-gold':'b-blue';
-    return `<tr>
-      <td><strong>${s.tipo}</strong></td>
-      <td>Estudiante ${s.estudiante_id}</td>
-      <td>${s.fecha}</td>
-      <td><span class="badge ${cls}">${s.estado}</span></td>
-      <td style="display:flex;gap:6px">
-        ${s.estado!=='Aprobada' ? `<button class="btn btn-gold btn-sm" onclick="cambiarEstadoSolic(${s.id},'Aprobada')">Aprobar</button>` : ''}
-        ${s.estado!=='Rechazada' ? `<button class="btn btn-danger btn-sm" onclick="cambiarEstadoSolic(${s.id},'Rechazada')">Rechazar</button>` : ''}
-      </td>
-    </tr>`;
-  }).join('');
-}
-
-function cambiarEstadoSolic(id, estado) {
-  const s = DB.solicitudes.find(s=>s.id===id);
-  if (s) s.estado = estado;
-  document.getElementById('tabla-solicitudes').innerHTML = renderFilasSolicitudes(DB.solicitudes);
-  showToast(`Solicitud ${estado.toLowerCase()} ✦`);
+async function cambiarEstadoSolicDB(id, estado) {
+  const ok = await API.actualizarSolicitud(id, { estado });
+  if (ok) { showToast(`Solicitud ${estado.toLowerCase()} ✦`); cargarSolicitudesAdmin(); }
+  else showToast('Error al actualizar.');
 }
 
 // --- SOLICITUDES ESTUDIANTE ---
 function renderSolicitudesEst() {
-  const estId = currentUser.estudiante_id || currentUser.id;
-  const misSolic = DB.solicitudes.filter(s=>s.estudiante_id===estId);
+  setTimeout(() => cargarSolicitudesEst(), 50);
   return `
   <div class="flex-between mb-2">
-    <p class="text-muted text-sm">${misSolic.length} solicitud(es) enviadas</p>
+    <p class="text-muted text-sm" id="solic-count">Cargando...</p>
     <button class="btn btn-gold" onclick="openModalNuevaSolicitud()">+ Nueva solicitud</button>
   </div>
-  ${misSolic.map(s=>{
-    const cls = s.estado==='Aprobada'?'b-green':s.estado==='Rechazada'?'b-red':'b-gold';
-    return `<div class="solic-item">
-      <div class="solic-icon">✦</div>
-      <div style="flex:1">
-        <div class="solic-title">${s.tipo}</div>
-        <div class="solic-date">${s.fecha} ${s.detalle?'· '+s.detalle:''}</div>
-      </div>
-      <span class="badge ${cls}">${s.estado}</span>
-    </div>`;
-  }).join('')}
-  ${!misSolic.length ? '<p class="text-muted text-sm">No tienes solicitudes enviadas.</p>' : ''}`;
+  <div id="solic-est-content"><div style="text-align:center;padding:40px;color:var(--text3)">Cargando...</div></div>`;
+}
+
+async function cargarSolicitudesEst() {
+  const el = document.getElementById('solic-est-content');
+  const ct = document.getElementById('solic-count');
+  if (!el) return;
+  const estId = currentUser.estudiante_id || currentUser.id;
+  try {
+    const lista = await API.getSolicitudes(estId);
+    if (ct) ct.textContent = `${lista.length} solicitud${lista.length!==1?'es':''} enviada${lista.length!==1?'s':''}`;
+    if (lista.length === 0) {
+      el.innerHTML = `<div class="card" style="text-align:center;padding:30px">
+        <div style="font-size:13px;color:var(--text3)">No tienes solicitudes enviadas aún.</div>
+      </div>`; return;
+    }
+    el.innerHTML = lista.map(s=>{
+      const cls = s.estado==='Aprobada'?'b-green':s.estado==='Rechazada'?'b-red':'b-gold';
+      return `<div class="solic-item">
+        <div class="solic-icon">✦</div>
+        <div style="flex:1">
+          <div class="solic-title">${s.tipo}</div>
+          <div class="solic-date">${s.fecha||'—'}${s.detalle?' · '+s.detalle:''}</div>
+        </div>
+        <span class="badge ${cls}">${s.estado}</span>
+      </div>`;
+    }).join('');
+  } catch(e) {
+    if (el) el.innerHTML = `<div class="card" style="color:var(--red);padding:16px">Error al cargar solicitudes.</div>`;
+  }
+}
 }
 
 // --- MI PERFIL ---
@@ -2480,31 +2869,48 @@ function renderMisMaterias() {
 
 // --- PROFESORES ---
 function renderProfesores() {
-  const profs = USUARIOS_AUTH.filter(u => u.rol === 'profesor');
+  setTimeout(() => cargarProfesores(), 50);
   return `
   <div class="flex-between mb-2">
-    <p class="text-muted text-sm">${profs.length} docente${profs.length !== 1 ? 's' : ''} registrado${profs.length !== 1 ? 's' : ''}</p>
+    <p class="text-muted text-sm" id="prof-count">Cargando...</p>
     <button class="btn btn-gold" onclick="openModalNuevoProf()">+ Nuevo docente</button>
   </div>
-  ${profs.length === 0 ? `
-  <div class="card" style="text-align:center;padding:40px">
-    <div style="font-size:32px;margin-bottom:12px">👨‍🏫</div>
-    <div style="font-size:15px;font-weight:500;color:var(--text);margin-bottom:6px">Sin docentes registrados</div>
-    <div style="font-size:13px;color:var(--text3)">Haz clic en "+ Nuevo docente" para agregar el primer profesor.</div>
-  </div>` : `
-  <div class="grid-3">
-    ${profs.map(p=>`<div class="card">
-      <div class="flex-center mb-2">
-        <div class="user-avatar dot-prof" style="width:42px;height:42px;font-size:14px">${p.iniciales}</div>
-        <div>
-          <div style="font-size:14px;font-weight:500;color:var(--text)">${p.nombre}</div>
-          <div class="text-sm text-muted">${p.especialidad||'—'}</div>
+  <div id="prof-content"><div style="text-align:center;padding:40px;color:var(--text3)">Conectando con la base de datos...</div></div>`;
+}
+
+async function cargarProfesores() {
+  const el = document.getElementById('prof-content');
+  const ct = document.getElementById('prof-count');
+  if (!el) return;
+  try {
+    const profs = await API.getProfesores();
+    if (ct) ct.textContent = `${profs.length} docente${profs.length!==1?'s':''} registrado${profs.length!==1?'s':''}`;
+    if (profs.length === 0) {
+      el.innerHTML = `<div class="card" style="text-align:center;padding:40px">
+        <div style="font-size:32px;margin-bottom:12px">👨‍🏫</div>
+        <div style="font-size:15px;font-weight:500;color:var(--text);margin-bottom:6px">Sin docentes registrados</div>
+        <div style="font-size:13px;color:var(--text3)">Haz clic en "+ Nuevo docente" para agregar el primero.</div>
+      </div>`; return;
+    }
+    el.innerHTML = `<div class="grid-3">${profs.map(p=>{
+      const nombre   = p.usuario?.nombre||'Profesor';
+      const iniciales= nombre.split(' ').map(w=>w[0]).slice(0,2).join('').toUpperCase();
+      return `<div class="card">
+        <div class="flex-center mb-2">
+          <div class="user-avatar dot-prof" style="width:42px;height:42px;font-size:14px">${iniciales}</div>
+          <div>
+            <div style="font-size:14px;font-weight:500;color:var(--text)">${nombre}</div>
+            <div class="text-sm text-muted">${p.especialidad||'—'}</div>
+          </div>
         </div>
-      </div>
-      <div class="sep"></div>
-      <div class="row-item"><span class="text-muted">Email</span><span class="text-sm" style="color:var(--blue)">${p.email||'—'}</span></div>
-    </div>`).join('')}
-  </div>`}`;
+        <div class="sep"></div>
+        <div class="row-item"><span class="text-muted">RUT</span><span style="font-family:monospace;font-size:12px;color:var(--text3)">${p.usuario?.rut||'—'}</span></div>
+        <div class="row-item"><span class="text-muted">Email</span><span class="text-sm" style="color:var(--blue)">${p.usuario?.email||'—'}</span></div>
+      </div>`;
+    }).join('')}</div>`;
+  } catch(e) {
+    if (el) el.innerHTML = `<div class="card" style="color:var(--red);padding:16px">Error al cargar docentes.</div>`;
+  }
 }
 }
 
@@ -2521,34 +2927,30 @@ function closeModal(e) {
   }
 }
 
-function guardarNuevoProfModal(nombre, rut, email, especialidad) {
+async function guardarNuevoProfModal(nombre, rut, email, especialidad) {
   if (!nombre || !rut) { showToast('Nombre y RUT son obligatorios'); return; }
+  const rutBase   = limpiarRut(rut);
   const iniciales = nombre.split(' ').map(w=>w[0]).slice(0,2).join('').toUpperCase();
-  const passwordTemporal = 'Bienvenido2025!';
-  const nuevoId = Date.now();
-  USUARIOS_AUTH.push({
-    id: nuevoId, rut: rut.replace(/\./g,'').split('-')[0],
-    password: passwordTemporal,
-    rol: 'profesor', nombre, iniciales, email,
-    materias: [], debe_cambiar_password: true,
-  });
-  closeModal();
-  showModal(`
-    <div class="modal-title">
-      <span>Profesor registrado ✦</span>
-      <button class="modal-close" onclick="closeModal()">✕</button>
-    </div>
-    <div style="background:var(--gold-bg);border:1px solid rgba(201,168,76,0.3);border-radius:10px;padding:16px;margin-bottom:16px">
-      <div style="font-size:12px;color:var(--text3);margin-bottom:10px;text-transform:uppercase;letter-spacing:1px">Credenciales — entregar al docente</div>
-      <div class="row-item"><span style="color:var(--text2);font-size:13px">Nombre</span><strong style="color:var(--text)">${nombre}</strong></div>
-      <div class="row-item"><span style="color:var(--text2);font-size:13px">RUT de ingreso</span><strong style="color:var(--gold);font-family:monospace">${rut.replace(/\./g,'').split('-')[0]}</strong></div>
-      <div class="row-item"><span style="color:var(--text2);font-size:13px">Contraseña temporal</span><strong style="color:var(--gold);font-family:monospace">${passwordTemporal}</strong></div>
-    </div>
-    <div style="font-size:12px;color:var(--text3);line-height:1.6;background:var(--bg3);border-radius:8px;padding:12px">
-      El docente deberá cambiar esta contraseña la primera vez que ingrese. Comunícale estas credenciales de forma segura.
-    </div>
-    <button class="btn btn-gold mt-2" onclick="closeModal()">Entendido</button>
-  `);
+  const passTemp  = 'Bienvenido2025!';
+  try {
+    await API.crearProfesor(
+      { rut: rutBase, password_hash: passTemp, rol: 'profesor',
+        nombre, iniciales, email, activo: true, debe_cambiar_password: true },
+      { especialidad }
+    );
+    closeModal();
+    showModal(`<div class="modal-title"><span>Profesor registrado ✦</span><button class="modal-close" onclick="closeModal()">✕</button></div>
+      <div style="background:var(--gold-bg);border:1px solid rgba(201,168,76,0.3);border-radius:10px;padding:16px;margin-bottom:16px">
+        <div style="font-size:12px;color:var(--text3);margin-bottom:10px;text-transform:uppercase;letter-spacing:1px">Credenciales — entregar al docente</div>
+        <div class="row-item"><span style="color:var(--text2);font-size:13px">Nombre</span><strong>${nombre}</strong></div>
+        <div class="row-item"><span style="color:var(--text2);font-size:13px">RUT de ingreso</span><strong style="color:var(--gold);font-family:monospace">${rutBase}</strong></div>
+        <div class="row-item"><span style="color:var(--text2);font-size:13px">Contraseña temporal</span><strong style="color:var(--gold);font-family:monospace">${passTemp}</strong></div>
+      </div>
+      <div style="font-size:12px;color:var(--text3);line-height:1.6;background:var(--bg3);border-radius:8px;padding:12px">
+        El docente deberá cambiar esta contraseña la primera vez que ingrese.
+      </div>
+      <button class="btn btn-gold mt-2" onclick="closeModal()">Entendido</button>\`);
+  } catch(e) { showToast('Error al registrar. El RUT puede estar duplicado.'); console.error(e); }
 }
 
 function openModalNuevoProf() {
@@ -2616,75 +3018,48 @@ function openModalNuevoEst() {
   `);
 }
 
-function guardarNuevoEst() {
-  const nombre = document.getElementById('ne-nombre').value.trim();
+async function guardarNuevoEst() {
+  const nombre    = document.getElementById('ne-nombre').value.trim();
   const apellido2 = document.getElementById('ne-apellido2').value.trim();
   if (!nombre) { showToast('Ingresa el nombre del estudiante'); return; }
   const rut = document.getElementById('ne-rut').value.trim();
-  if (!rut) { showToast('Ingresa el RUT del estudiante'); return; }
+  if (!rut)  { showToast('Ingresa el RUT del estudiante'); return; }
+  const rutBase   = limpiarRut(rut);
   const iniciales = (nombre[0]+(apellido2[0]||'')).toUpperCase();
-  const carrera = document.getElementById('ne-carrera').value;
-  const planId = parseInt(document.getElementById('ne-plan').value);
-  const plan = DB.planes.find(p=>p.id===planId);
-  const passwordTemporal = 'Bienvenido2025!';
-  const nuevoId = Date.now();
-
-  DB.estudiantes.push({
-    id: nuevoId, nombre, apellido2, iniciales, rut,
-    fechaNacimiento: document.getElementById('ne-fnac').value||'',
-    genero: '—', nacionalidad: 'Chilena', estadoCivil: '—',
-    iglesia: document.getElementById('ne-iglesia').value||'',
-    email: document.getElementById('ne-email').value||'',
-    emailPersonal: '', telefono: document.getElementById('ne-tel').value||'',
-    telefonoEmergencia: '', contactoEmergencia: '',
-    direccion: '', ciudad: '', region: '',
-    semestre: document.getElementById('ne-sem').value,
-    semestreNum: 1, estado: 'Activo',
-    estadoAcademico: document.getElementById('ne-estado-acad').value,
-    ingreso: new Date().getFullYear(),
-    fechaIngreso: new Date().toISOString().split('T')[0], egreso: null,
-    carrera, plan_id: planId,
-    creditosAprobados: 0, creditosPlan: plan?.creditos_total||100,
-    observaciones: '',
-  });
-
-  // Crear usuario de acceso con contraseña temporal
-  USUARIOS_AUTH.push({
-    id: nuevoId, rut: rut.replace(/\./g,'').split('-')[0],
-    password: passwordTemporal,
-    rol: 'estudiante', nombre: `${nombre} ${apellido2}`.trim(),
-    iniciales, email: document.getElementById('ne-email').value||'',
-    estudiante_id: nuevoId, debe_cambiar_password: true,
-  });
-
-  closeModal();
-
-  // Mostrar credenciales al administrador
-  showModal(`
-    <div class="modal-title">
-      <span>Estudiante registrado ✦</span>
-      <button class="modal-close" onclick="closeModal()">✕</button>
-    </div>
-    <div style="background:var(--gold-bg);border:1px solid rgba(201,168,76,0.3);border-radius:10px;padding:16px;margin-bottom:16px">
-      <div style="font-size:12px;color:var(--text3);margin-bottom:10px;text-transform:uppercase;letter-spacing:1px">Credenciales de acceso — entregar al estudiante</div>
-      <div class="row-item">
-        <span style="color:var(--text2);font-size:13px">Nombre</span>
-        <strong style="color:var(--text)">${nombre} ${apellido2}</strong>
+  const carrera   = document.getElementById('ne-carrera').value;
+  const planId    = parseInt(document.getElementById('ne-plan').value);
+  const plan      = DB.planes.find(p=>p.id===planId);
+  const passTemp  = 'Bienvenido2025!';
+  try {
+    await API.crearEstudiante(
+      { rut: rutBase, password_hash: passTemp, rol: 'estudiante',
+        nombre: `${nombre} ${apellido2}`.trim(), apellido2, iniciales,
+        email: document.getElementById('ne-email').value||'',
+        activo: true, debe_cambiar_password: true },
+      { rut: rutBase, apellido2,
+        iglesia: document.getElementById('ne-iglesia').value||'',
+        telefono: document.getElementById('ne-tel').value||'',
+        fecha_nacimiento: document.getElementById('ne-fnac').value||null,
+        semestre: document.getElementById('ne-sem').value, semestre_num: 1,
+        estado: 'Activo',
+        estado_academico: document.getElementById('ne-estado-acad').value,
+        carrera, plan_id: planId,
+        creditos_aprobados: 0, creditos_plan: plan?.creditos_total||100,
+        fecha_ingreso: new Date().toISOString().split('T')[0] }
+    );
+    closeModal();
+    showModal(`<div class="modal-title"><span>Estudiante registrado ✦</span><button class="modal-close" onclick="closeModal()">✕</button></div>
+      <div style="background:var(--gold-bg);border:1px solid rgba(201,168,76,0.3);border-radius:10px;padding:16px;margin-bottom:16px">
+        <div style="font-size:12px;color:var(--text3);margin-bottom:10px;text-transform:uppercase;letter-spacing:1px">Credenciales — entregar al estudiante</div>
+        <div class="row-item"><span style="color:var(--text2);font-size:13px">Nombre</span><strong>${nombre} ${apellido2}</strong></div>
+        <div class="row-item"><span style="color:var(--text2);font-size:13px">RUT de ingreso</span><strong style="color:var(--gold);font-family:monospace">${rutBase}</strong></div>
+        <div class="row-item"><span style="color:var(--text2);font-size:13px">Contraseña temporal</span><strong style="color:var(--gold);font-family:monospace">${passTemp}</strong></div>
       </div>
-      <div class="row-item">
-        <span style="color:var(--text2);font-size:13px">RUT de ingreso</span>
-        <strong style="color:var(--gold);font-family:monospace">${rut.replace(/\./g,'').split('-')[0]}</strong>
+      <div style="font-size:12px;color:var(--text3);line-height:1.6;background:var(--bg3);border-radius:8px;padding:12px">
+        El estudiante deberá cambiar esta contraseña la primera vez que ingrese.
       </div>
-      <div class="row-item">
-        <span style="color:var(--text2);font-size:13px">Contraseña temporal</span>
-        <strong style="color:var(--gold);font-family:monospace">${passwordTemporal}</strong>
-      </div>
-    </div>
-    <div style="font-size:12px;color:var(--text3);line-height:1.6;background:var(--bg3);border-radius:8px;padding:12px">
-      El estudiante deberá cambiar esta contraseña la primera vez que ingrese al portal. Comunícale estas credenciales de forma segura (en persona o por mensaje directo).
-    </div>
-    <button class="btn btn-gold mt-2" onclick="closeModal();navigate('estudiantes')">Entendido</button>
-  `);
+      <button class="btn btn-gold mt-2" onclick="closeModal();navigate('estudiantes')">Entendido</button>\`);
+  } catch(e) { showToast('Error al registrar. El RUT puede estar duplicado.'); console.error(e); }
 }
 
 function openModalFormAdmision() {
@@ -2704,21 +3079,22 @@ function openModalFormAdmision() {
   `);
 }
 
-function enviarAdmision() {
+async function enviarAdmision() {
   const nombre = document.getElementById('adm-nombre').value.trim();
   if (!nombre) { showToast('Completa el formulario'); return; }
-  DB.admisiones.unshift({
-    id: Date.now(), nombre,
-    email: document.getElementById('adm-email').value,
-    telefono: document.getElementById('adm-tel').value,
-    fecha: new Date().toISOString().split('T')[0],
-    estado: 'Pendiente',
-    semestre: document.getElementById('adm-sem').value,
-    mensaje: document.getElementById('adm-msg').value
-  });
-  closeModal();
-  showToast('Solicitud enviada correctamente ✦');
-  navigate('admisiones');
+  try {
+    await API.crearAdmision({
+      nombre,
+      email: document.getElementById('adm-email').value,
+      telefono: document.getElementById('adm-tel').value,
+      semestre_postula: document.getElementById('adm-sem').value,
+      mensaje: document.getElementById('adm-msg').value,
+      estado: 'Pendiente',
+    });
+    closeModal();
+    showToast('Solicitud enviada correctamente ✦');
+    navigate('admisiones');
+  } catch(e) { showToast('Error al enviar solicitud.'); }
 }
 
 function openModalNuevaSolicitud() {
@@ -2741,18 +3117,16 @@ function openModalNuevaSolicitud() {
   `);
 }
 
-function enviarSolicitud() {
-  const tipo = document.getElementById('sol-tipo').value;
+async function enviarSolicitud() {
+  const tipo    = document.getElementById('sol-tipo').value;
   const detalle = document.getElementById('sol-detalle').value;
-  const estId = currentUser.estudiante_id || currentUser.id;
-  DB.solicitudes.unshift({
-    id: Date.now(), estudiante_id: estId, tipo, detalle,
-    fecha: new Date().toISOString().split('T')[0],
-    estado: 'En proceso'
-  });
-  closeModal();
-  showToast('Solicitud enviada correctamente ✦');
-  navigate('solicitudes');
+  const estId   = currentUser.estudiante_id || currentUser.id;
+  try {
+    await API.crearSolicitud({ estudiante_id: estId, tipo, detalle, estado: 'En proceso' });
+    closeModal();
+    showToast('Solicitud enviada correctamente ✦');
+    navigate('solicitudes');
+  } catch(e) { showToast('Error al enviar solicitud.'); }
 }
 
 function openModalNuevoTema() {
@@ -2772,24 +3146,25 @@ function openModalNuevoTema() {
   `);
 }
 
-function publicarTema() {
+async function publicarTema() {
   const titulo = document.getElementById('foro-titulo').value.trim();
   if (!titulo) { showToast('Escribe un título para el tema'); return; }
-  DB.foro.unshift({
-    id: Date.now(),
-    materia_id: parseInt(document.getElementById('foro-mat').value),
-    autor: currentUser.nombre,
-    titulo,
-    contenido: document.getElementById('foro-contenido').value,
-    fecha: new Date().toISOString().split('T')[0],
-    respuestas: 0
-  });
-  closeModal();
-  showToast('Tema publicado en el foro ✦');
-  navigate('foro');
+  try {
+    await API.crearTema({
+      materia_id: parseInt(document.getElementById('foro-mat').value),
+      autor_id: currentUser.id,
+      autor_nombre: currentUser.nombre,
+      titulo,
+      contenido: document.getElementById('foro-contenido').value,
+    });
+    closeModal();
+    showToast('Tema publicado en el foro ✦');
+    navigate('foro');
+  } catch(e) { showToast('Error al publicar tema.'); }
 }
 
-function openModalNuevaMateria() {
+async function openModalNuevaMateria() {
+  const profs = await API.getProfesores().catch(()=>[]);
   showModal(`<div class="modal-title"><span>Nueva materia</span><button class="modal-close" onclick="closeModal()">✕</button></div>
     <div class="grid-2">
       <div class="form-group"><label class="form-label">Nombre</label><input class="form-control" id="nm-nombre" placeholder="Hermenéutica II"></div>
@@ -2797,34 +3172,41 @@ function openModalNuevaMateria() {
     </div>
     <div class="grid-2">
       <div class="form-group"><label class="form-label">Semestre</label>
-        <select class="form-control" id="nm-sem"><option>1</option><option>2</option><option>3</option><option>4</option><option>5</option><option>6</option></select>
+        <select class="form-control" id="nm-sem">
+          <option value="1">1°</option><option value="2">2°</option><option value="3">3°</option>
+          <option value="4">4°</option><option value="5">5°</option><option value="6">6°</option>
+        </select>
       </div>
       <div class="form-group"><label class="form-label">Créditos</label><input class="form-control" id="nm-cred" type="number" min="1" max="8" value="4"></div>
     </div>
     <div class="form-group"><label class="form-label">Profesor asignado</label>
       <select class="form-control" id="nm-prof">
         <option value="">— Sin asignar —</option>
-        ${USUARIOS_AUTH.filter(u=>u.rol==='profesor').map(p=>`<option value="${p.nombre}">${p.nombre}</option>`).join('')}
+        ${profs.map(p=>`<option value="${p.id}">${p.usuario?.nombre||'Profesor'}</option>`).join('')}
       </select>
     </div>
     <button class="btn btn-gold" onclick="guardarNuevaMateria()">Crear materia</button>
   `);
 }
 
-function guardarNuevaMateria() {
+async function guardarNuevaMateria() {
   const nombre = document.getElementById('nm-nombre').value.trim();
   if (!nombre) { showToast('Ingresa el nombre de la materia'); return; }
-  DB.materias.push({
-    id: DB.materias.length + 1,
-    nombre,
-    codigo: document.getElementById('nm-cod').value||'COD000',
-    semestre: parseInt(document.getElementById('nm-sem').value),
-    creditos: parseInt(document.getElementById('nm-cred').value)||4,
-    profesor: document.getElementById('nm-prof').value
-  });
-  closeModal();
-  showToast('Materia creada correctamente ✦');
-  navigate('materias');
+  try {
+    await API.crearMateria({
+      nombre,
+      codigo: document.getElementById('nm-cod').value.trim()||'COD000',
+      semestre: parseInt(document.getElementById('nm-sem').value)||1,
+      creditos: parseInt(document.getElementById('nm-cred').value)||4,
+      profesor_id: document.getElementById('nm-prof').value || null,
+      activa: true,
+    });
+    closeModal();
+    showToast('Materia creada correctamente ✦');
+    navigate('materias');
+  } catch(e) {
+    showToast('Error al crear materia. El código puede estar repetido.');
+  }
 }
 
 // ============================================
@@ -2840,23 +3222,32 @@ function showToast(msg) {
 function cambiarPassword() {
   const actual = document.getElementById('pass-actual').value;
   const nueva  = document.getElementById('pass-nueva').value;
-  const usuarioAuth = USUARIOS_AUTH.find(u => u.id === currentUser.id);
-  if (!usuarioAuth || usuarioAuth.password !== actual) {
-    showToast('La contraseña actual no es correcta.');
-    return;
-  }
-  if (nueva.length < 8) {
-    showToast('La nueva contraseña debe tener al menos 8 caracteres.');
-    return;
-  }
-  if (nueva === actual) {
-    showToast('La nueva contraseña debe ser diferente a la actual.');
-    return;
-  }
-  usuarioAuth.password = nueva;
-  showToast('Contraseña actualizada correctamente ✦');
-  document.getElementById('pass-actual').value = '';
-  document.getElementById('pass-nueva').value = '';
+
+  // Verificar contra Supabase o fallback local
+  API.login(currentUser.rut, actual).then(async ok => {
+    if (!ok) {
+      // Verificar local
+      const local = USUARIOS_AUTH.find(u => u.id === currentUser.id);
+      if (!local || local.password !== actual) {
+        showToast('La contraseña actual no es correcta.'); return;
+      }
+    }
+    if (nueva.length < 8) { showToast('Mínimo 8 caracteres.'); return; }
+    if (nueva === actual)  { showToast('La nueva contraseña debe ser diferente.'); return; }
+
+    const ok2 = await API.cambiarPassword(currentUser.id, nueva);
+    // También actualizar local por si acaso
+    const local = USUARIOS_AUTH.find(u => u.id === currentUser.id);
+    if (local) local.password = nueva;
+
+    if (ok2) {
+      showToast('Contraseña actualizada correctamente ✦');
+      document.getElementById('pass-actual').value = '';
+      document.getElementById('pass-nueva').value = '';
+    } else {
+      showToast('Error al guardar. Intenta de nuevo.');
+    }
+  });
 }
 
 function initPageScripts(page) {}
