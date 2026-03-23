@@ -44,8 +44,16 @@ const API = {
 
   // MATERIAS
   async getMaterias() {
-    const { data } = await SB.from('materias').select('*, profesor:profesor_id(id, nombre)').eq('activa', true).order('semestre');
-    return data || [];
+    const { data: mats } = await SB.from('materias').select('*').eq('activa', true).order('semestre');
+    if (!mats || mats.length === 0) return [];
+    // Traer nombres de profesores por separado
+    const profIds = [...new Set(mats.filter(m=>m.profesor_id).map(m=>m.profesor_id))];
+    let profMap = {};
+    if (profIds.length > 0) {
+      const { data: users } = await SB.from('usuarios').select('id, nombre').in('id', profIds);
+      (users||[]).forEach(u => profMap[u.id] = u);
+    }
+    return mats.map(m => ({ ...m, profesor: profMap[m.profesor_id] || null }));
   },
 
   async crearMateria(materia) {
@@ -66,20 +74,26 @@ const API = {
 
   // ESTUDIANTES
   async getEstudiantes() {
-    const { data } = await SB.from('estudiantes').select('*, usuario:id(nombre, email, rut)').order('creado_en', { ascending: false });
-    return data || [];
+    const { data: ests } = await SB.from('estudiantes').select('*').order('creado_en', { ascending: false });
+    if (!ests) return [];
+    // Traer los usuarios correspondientes
+    const ids = ests.map(e => e.id);
+    const { data: users } = await SB.from('usuarios').select('id, nombre, email, rut').in('id', ids);
+    const userMap = {};
+    (users||[]).forEach(u => userMap[u.id] = u);
+    return ests.map(e => ({ ...e, usuario: userMap[e.id] || {} }));
   },
 
   async getEstudiante(id) {
-    const { data } = await SB.from('estudiantes').select('*, usuario:id(nombre, email, rut)').eq('id', id).single();
-    return data;
+    const { data: est } = await SB.from('estudiantes').select('*').eq('id', id).single();
+    if (!est) return null;
+    const { data: user } = await SB.from('usuarios').select('id, nombre, email, rut').eq('id', id).single();
+    return { ...est, usuario: user || {} };
   },
 
   async crearEstudiante(usuario, estudiante) {
-    // Primero crea el usuario
     const { data: u, error: eu } = await SB.from('usuarios').insert(usuario).select().single();
     if (eu) throw eu;
-    // Luego crea la ficha de estudiante
     const { data: e, error: ee } = await SB.from('estudiantes').insert({ ...estudiante, id: u.id }).select().single();
     if (ee) throw ee;
     return { usuario: u, estudiante: e };
@@ -92,8 +106,13 @@ const API = {
 
   // PROFESORES
   async getProfesores() {
-    const { data } = await SB.from('profesores').select('*, usuario:id(nombre, email, rut, iniciales)').order('creado_en', { ascending: false });
-    return data || [];
+    const { data: profs } = await SB.from('profesores').select('*').order('creado_en', { ascending: false });
+    if (!profs || profs.length === 0) return [];
+    const ids = profs.map(p => p.id);
+    const { data: users } = await SB.from('usuarios').select('id, nombre, email, rut, iniciales').in('id', ids);
+    const userMap = {};
+    (users||[]).forEach(u => userMap[u.id] = u);
+    return profs.map(p => ({ ...p, usuario: userMap[p.id] || {} }));
   },
 
   async crearProfesor(usuario, profesor) {
@@ -106,13 +125,23 @@ const API = {
 
   // NOTAS
   async getNotasEstudiante(estudianteId) {
-    const { data } = await SB.from('notas').select('*, materia:materia_id(nombre, codigo)').eq('estudiante_id', estudianteId);
-    return data || [];
+    const { data: notas } = await SB.from('notas').select('*').eq('estudiante_id', estudianteId);
+    if (!notas || notas.length === 0) return [];
+    const matIds = [...new Set(notas.map(n => n.materia_id))];
+    const { data: mats } = await SB.from('materias').select('id, nombre, codigo').in('id', matIds);
+    const matMap = {};
+    (mats||[]).forEach(m => matMap[m.id] = m);
+    return notas.map(n => ({ ...n, materia: matMap[n.materia_id] || {} }));
   },
 
   async getNotasMateria(materiaId) {
-    const { data } = await SB.from('notas').select('*, estudiante:estudiante_id(id, usuario:id(nombre, rut))').eq('materia_id', materiaId);
-    return data || [];
+    const { data: notas } = await SB.from('notas').select('*').eq('materia_id', materiaId);
+    if (!notas || notas.length === 0) return [];
+    const ids = notas.map(n => n.estudiante_id);
+    const { data: users } = await SB.from('usuarios').select('id, nombre, rut').in('id', ids);
+    const userMap = {};
+    (users||[]).forEach(u => userMap[u.id] = u);
+    return notas.map(n => ({ ...n, estudiante: { usuario: userMap[n.estudiante_id] || {} } }));
   },
 
   async guardarNota(nota) {
@@ -133,10 +162,15 @@ const API = {
 
   // MATERIAL
   async getMaterial(materiaId = null) {
-    let q = SB.from('material').select('*, materia:materia_id(nombre)').order('creado_en', { ascending: false });
+    let q = SB.from('material').select('*').order('creado_en', { ascending: false });
     if (materiaId) q = q.eq('materia_id', materiaId);
-    const { data } = await q;
-    return data || [];
+    const { data: mats } = await q;
+    if (!mats || mats.length === 0) return [];
+    const matIds = [...new Set(mats.filter(m=>m.materia_id).map(m=>m.materia_id))];
+    const { data: materias } = await SB.from('materias').select('id, nombre').in('id', matIds);
+    const matMap = {};
+    (materias||[]).forEach(m => matMap[m.id] = m);
+    return mats.map(m => ({ ...m, materia: matMap[m.materia_id] || {} }));
   },
 
   async subirMaterial(material) {
@@ -152,10 +186,15 @@ const API = {
 
   // SOLICITUDES
   async getSolicitudes(estudianteId = null) {
-    let q = SB.from('solicitudes').select('*, estudiante:estudiante_id(id, usuario:id(nombre, rut))').order('fecha', { ascending: false });
+    let q = SB.from('solicitudes').select('*').order('fecha', { ascending: false });
     if (estudianteId) q = q.eq('estudiante_id', estudianteId);
-    const { data } = await q;
-    return data || [];
+    const { data: sols } = await q;
+    if (!sols || sols.length === 0) return [];
+    const ids = [...new Set(sols.map(s => s.estudiante_id))];
+    const { data: users } = await SB.from('usuarios').select('id, nombre, rut').in('id', ids);
+    const userMap = {};
+    (users||[]).forEach(u => userMap[u.id] = u);
+    return sols.map(s => ({ ...s, estudiante: { usuario: userMap[s.estudiante_id] || {} } }));
   },
 
   async crearSolicitud(solicitud) {
@@ -171,10 +210,18 @@ const API = {
 
   // FORO
   async getTemasForо(materiaId = null) {
-    let q = SB.from('foro_temas').select('*, respuestas:foro_respuestas(count)').order('creado_en', { ascending: false });
+    let q = SB.from('foro_temas').select('*').order('creado_en', { ascending: false });
     if (materiaId) q = q.eq('materia_id', materiaId);
-    const { data } = await q;
-    return data || [];
+    const { data: temas } = await q;
+    if (!temas || temas.length === 0) return [];
+    // Contar respuestas por tema
+    const counts = await Promise.all(temas.map(async t => {
+      const { count } = await SB.from('foro_respuestas').select('*', { count: 'exact', head: true }).eq('tema_id', t.id);
+      return { id: t.id, count: count || 0 };
+    }));
+    const countMap = {};
+    counts.forEach(c => countMap[c.id] = c.count);
+    return temas.map(t => ({ ...t, respuestas: [{ count: countMap[t.id] || 0 }] }));
   },
 
   async crearTema(tema) {
