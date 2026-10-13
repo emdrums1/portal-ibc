@@ -1109,7 +1109,8 @@ textarea.form-control { resize: vertical; min-height: 90px; }
 // DATA STORE
 // ============================================
 const DB = {
-  semestre: "1er Semestre 2025",
+  // Se calcula según la fecha actual: enero–julio = 1er semestre, agosto–diciembre = 2do semestre
+  semestre: `${new Date().getMonth() < 7 ? '1er' : '2do'} Semestre ${new Date().getFullYear()}`,
 
   usuarios: [],
 
@@ -1160,14 +1161,17 @@ function formatearRutInput(input) {
   input.value = input.value.replace(/[^0-9]/g, '');
 }
 
-// Solo el admin local como respaldo mientras Supabase carga
-const USUARIOS_AUTH = [
-  {
-    id: 'admin-local', rut: '20527658', password: 'IBC_Muc#2025*Adm',
-    rol: 'admin', nombre: 'Administrador', iniciales: 'AD',
-    email: 'admin@ibcmuc.cl', debe_cambiar_password: false,
-  },
-];
+// Sin usuarios locales: todas las cuentas (incluido el administrador) viven en la tabla
+// `usuarios` de Supabase. No guardes contraseñas en este archivo: el repositorio es visible.
+const USUARIOS_AUTH = [];
+
+// Genera una contraseña temporal aleatoria para cuentas nuevas
+function generarPasswordTemporal() {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789';
+  const bytes = new Uint32Array(10);
+  crypto.getRandomValues(bytes);
+  return Array.from(bytes, b => chars[b % chars.length]).join('');
+}
 
 // Seguimiento de intentos fallidos (anti-fuerza bruta simple)
 let intentosFallidos = 0;
@@ -1184,10 +1188,8 @@ function restaurarSesion() {
       const datos = JSON.parse(sesion);
       // Verificar que la sesión no expiró (8 horas)
       if (datos.expira && Date.now() < datos.expira) {
-        const usuario = USUARIOS_AUTH.find(u => u.id === datos.userId);
-        if (usuario) {
-          currentUser = { ...usuario };
-          delete currentUser.password;
+        if (datos.usuario) {
+          currentUser = { ...datos.usuario };
           mostrarApp();
           return;
         }
@@ -1249,6 +1251,7 @@ function intentarLogin() {
       try {
         localStorage.setItem('ibc_sesion', JSON.stringify({
           userId: usuario.id,
+          usuario: currentUser,
           expira: Date.now() + (8 * 60 * 60 * 1000)
         }));
       } catch(e) {}
@@ -1377,12 +1380,7 @@ function mostrarFormLogin() {
 function enviarRecuperacion() {
   const rut = document.getElementById('rec-rut').value.trim();
   if (!rut) { return; }
-  const usuario = USUARIOS_AUTH.find(u => u.rut === limpiarRut(rut));
-  if (usuario) {
-    showToast(`Solicitud enviada para RUT ${rut}. El administrador restablecerá el acceso.`);
-  } else {
-    showToast(`RUT ${rut} no encontrado en el sistema.`);
-  }
+  showToast(`Solicitud enviada para RUT ${rut}. Si el RUT está registrado, el administrador restablecerá el acceso.`);
   mostrarFormLogin();
 }
 
@@ -3259,7 +3257,7 @@ async function guardarNuevoProfModal(nombre, rut, email, especialidad) {
   if (!nombre || !rut) { showToast('Nombre y RUT son obligatorios'); return; }
   const rutBase   = limpiarRut(rut);
   const iniciales = nombre.split(' ').map(w=>w[0]).slice(0,2).join('').toUpperCase();
-  const passTemp  = 'Bienvenido2025!';
+  const passTemp  = generarPasswordTemporal();
   try {
     await API.crearProfesor(
       { rut: rutBase, password_hash: passTemp, rol: 'profesor',
@@ -3292,7 +3290,7 @@ function openModalNuevoProf() {
       <div class="form-group"><label class="form-label">Especialidad</label><input class="form-control" id="np-espec" placeholder="Hermenéutica · Teología"></div>
     </div>
     <div style="background:var(--bg3);border-radius:8px;padding:12px;font-size:12px;color:var(--text3);margin-bottom:16px;line-height:1.5">
-      Se asignará la contraseña temporal <strong style="color:var(--gold)">Bienvenido2025!</strong> — el docente deberá cambiarla en su primer ingreso.
+      Se generará una contraseña temporal aleatoria que verás al registrar — el docente deberá cambiarla en su primer ingreso.
     </div>
     <button class="btn btn-gold" onclick="guardarNuevoProfModal(
       document.getElementById('np-nombre').value.trim(),
@@ -3357,7 +3355,7 @@ async function guardarNuevoEst() {
   const carrera   = document.getElementById('ne-carrera').value;
   const planId    = parseInt(document.getElementById('ne-plan').value);
   const plan      = DB.planes.find(p=>p.id===planId);
-  const passTemp  = 'Bienvenido2025!';
+  const passTemp  = generarPasswordTemporal();
   try {
     await API.crearEstudiante(
       { rut: rutBase, password_hash: passTemp, rol: 'estudiante',
